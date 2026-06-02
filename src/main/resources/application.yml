@@ -1,0 +1,89 @@
+debug: false
+
+spring:
+  profiles:
+    active: dev
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+  sql:
+    init:
+      mode: never
+
+# SpringDoc OpenAPI 配置
+# 在现有配置下添加 springdoc 配置
+springdoc:
+  # 关闭控制台缓存日志
+  cache:
+    disabled: true
+  # 关闭详细日志输出
+  show-actuator: false
+  # 关闭模型和视图的额外日志
+  model-and-view-allowed: false
+  # 关闭 writer 的详细输出
+  writer-with-default-pretty-printer: false
+
+# 关闭 SpringDoc 的 debug 日志
+logging:
+  level:
+    root: WARN
+    org.springframework: WARN
+    org.springdoc: WARN
+    com.github.xiaoymin.knife4j: WARN
+    org.apache.catalina: WARN
+    org.apache.tomcat: WARN
+    sun.rmi: ERROR
+    javax.management: ERROR
+
+# Knife4j 增强配置
+knife4j:
+  enable: true
+  # 生产环境屏蔽（生产环境设为 true 会禁用文档）
+  production: false
+  setting:
+    language: zh_cn
+    # 是否显示 Swagger 模型
+    enable-swagger-models: true
+    # 文档标题
+    document-title: "仿Wechat聊天系统接口文档"
+    # 是否显示热刷新
+    enable-reload-cache-parameter: true
+    # 调试时是否自动下载
+    enable-auto-escape: true
+    # 是否开启动态请求参数
+    enable-dynamic-parameter: true
+    # 是否调试参数
+    enable-debug: true
+    # 是否显示搜索框
+    enable-search: true
+    # 是否显示分组
+    enable-group: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: org.example.wechat.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+app:
+  avatar:
+    default-path: /avatar/default-avatar.png
+    default-url: http://localhost:8080/avatar/default-avatar.png
+
+# JWT 配置
+jwt:
+  secret: wechatSecretKey2024ForJWTTokenGenerationMakeSureItIsLongEnough
+  expiration: 604800000    # 7天（毫秒）

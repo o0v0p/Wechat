@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.wechat.dao.GroupMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="groupId" keyColumn="group_id">
+        INSERT INTO biz_group (
+            group_name, owner_id, group_type, max_num, group_avatar,
+            description, group_notice, creator_id, updater_id,
+            created_time, updated_time
+        ) VALUES (
+                     #{groupName}, #{ownerId}, #{groupType}, #{maxNum}, #{groupAvatar},
+                     #{description}, #{groupNotice}, #{creatorId}, #{updaterId},
+                     #{createdTime}, #{updatedTime}
+                 )
+    </insert>
+
+    <update id="updateById">
+        UPDATE biz_group
+        <set>
+            <if test="groupName != null">group_name = #{groupName},</if>
+            <if test="ownerId != null">owner_id = #{ownerId},</if>
+            <if test="groupType != null">group_type = #{groupType},</if>
+            <if test="maxNum != null">max_num = #{maxNum},</if>
+            <if test="groupAvatar != null">group_avatar = #{groupAvatar},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="groupNotice != null">group_notice = #{groupNotice},</if>
+            <if test="updaterId != null">updater_id = #{updaterId},</if>
+            updated_time = #{updatedTime}
+        </set>
+        WHERE group_id = #{groupId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM biz_group WHERE group_id = #{groupId}
+    </delete>
+
+    <select id="selectByKey" resultType="org.example.wechat.pojo.vo.GroupSearchVO">
+        SELECT
+            g.group_id,
+            g.group_name,
+            g.group_avatar,
+            g.description,
+            (SELECT COUNT(*) FROM biz_group_user WHERE group_id = g.group_id AND is_deleted = 0) as member_count
+        FROM biz_group g
+        WHERE g.group_name LIKE #{keyword}
+          AND g.group_type = 1
+        ORDER BY g.created_time DESC
+    </select>
+
+</mapper>

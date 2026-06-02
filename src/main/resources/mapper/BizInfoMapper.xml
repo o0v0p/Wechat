@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.wechat.dao.BizInfoMapper">
+
+    <select id="getHistory" resultType="org.example.wechat.pojo.entity.BizInfo">
+        SELECT * FROM biz_info
+        <choose>
+            <when test="receiverType == 1">
+                <!-- 群聊：只要发给这个群的消息 -->
+                WHERE receiver_id = #{otherId}
+                AND receiver_type = 1
+            </when>
+            <otherwise>
+                <!-- 单聊：双向匹配 -->
+                WHERE ((receiver_id = #{userId} AND sender_id = #{otherId})
+                OR  (sender_id = #{userId} AND receiver_id = #{otherId}))
+                AND receiver_type = 0
+            </otherwise>
+        </choose>
+        <if test="lastInfoId != null and lastInfoId != 0">
+            AND info_id &lt; #{lastInfoId}
+        </if>
+        ORDER BY info_id DESC
+        LIMIT #{pageSize}
+    </select>
+
+
+</mapper>

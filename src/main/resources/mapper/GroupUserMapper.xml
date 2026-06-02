@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.wechat.dao.GroupUserMapper">
+
+    <!-- 批量插入群成员 （apply_type=1 成员邀请，check_result=1 通过）-->
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="groupMemId" keyColumn="group_mem_id">
+        INSERT INTO biz_group_user (
+        group_id, user_id, nickname, biz_role_id, not_disturb,
+        is_top, is_deleted, apply_type, invite_by, apply_remark,
+        check_by, check_result, created_time, updated_time, creator_id, updater_id
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.groupId}, #{item.userId}, #{item.nickname}, #{item.bizRoleId}, #{item.notDisturb},
+            #{item.isTop}, #{item.isDeleted}, #{item.applyType}, #{item.inviteBy}, #{item.applyRemark},
+            #{item.checkBy}, #{item.checkResult}, #{item.createdTime}, #{item.updatedTime}, #{item.creatorId}, #{item.updaterId}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 插入单条申请记录（apply_type=0 用户申请，check_result=2 待处理） -->
+    <insert id="insertApply" useGeneratedKeys="true" keyProperty="groupMemId" keyColumn="group_mem_id">
+        INSERT INTO biz_group_user (
+            group_id, user_id, nickname, biz_role_id, not_disturb,
+            is_top, is_deleted, apply_type, invite_by, apply_remark,
+            check_by, check_result, created_time, updated_time, creator_id, updater_id
+        ) VALUES (
+            #{groupId}, #{userId}, #{nickname}, #{bizRoleId}, #{notDisturb},
+            #{isTop}, #{isDeleted}, #{applyType}, #{inviteBy}, #{applyRemark},
+            #{checkBy}, #{checkResult}, #{createdTime}, #{updatedTime}, #{creatorId}, #{updaterId}
+        )
+    </insert>
+
+    <!-- 硬删除某个群成员 -->
+    <delete id="deleteByMem">
+        DELETE FROM biz_group_user
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </delete>
+
+    <!-- 硬删除群所有成员 -->
+    <delete id="deleteByGroupId">
+        DELETE FROM biz_group_user
+        WHERE group_id = #{groupId}
+    </delete>
+
+    <!-- 批量硬删除群成员 -->
+    <delete id="batchDeleteMem">
+        DELETE FROM biz_group_user
+        WHERE group_id = #{groupId}
+        AND user_id IN
+        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <!-- 更新成员角色 -->
+    <update id="updateRole">
+        UPDATE biz_group_user
+        SET biz_role_id = #{roleId}, updated_time = #{updatedTime}
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </update>
+
+    <select id="selectByGroupId" resultType="org.example.wechat.pojo.entity.BizGroupUser">
+        SELECT * FROM biz_group_user
+        WHERE group_id = #{groupId} AND is_deleted = 0 AND check_result = 1
+    </select>
+
+    <select id="countByGroupId" resultType="int">
+        SELECT COUNT(*) FROM biz_group_user
+        WHERE group_id = #{groupId} AND is_deleted = 0 AND check_result = 1
+    </select>
+
+    <select id="selectByMemId" resultType="org.example.wechat.pojo.entity.BizGroupUser">
+        SELECT * FROM biz_group_user
+        WHERE group_id = #{groupId} AND user_id = #{userId} AND check_result != 0 AND is_deleted = 0
+    </select>
+
+    <select id="selectApplyByUserId" resultType="org.example.wechat.pojo.vo.GroupApplyVO">
+        SELECT
+            gu.group_mem_id AS groupMemId,
+            gu.group_id,
+            g.group_name AS groupName,
+            gu.user_id,
+            u.user_nickname AS userName,
+            u.user_avatar,
+            gu.apply_type,
+            gu.apply_remark,
+            gu.check_result,
+            gu.created_time
+        FROM biz_group_user gu
+        LEFT JOIN biz_group g ON gu.group_id = g.group_id
+        LEFT JOIN biz_user u ON gu.user_id = u.sys_user_id
+        WHERE gu.user_id = #{userId} AND gu.apply_type = 0
+        ORDER BY gu.created_time DESC
+    </select>
+
+    <select id="selectPendingByGroupId" resultType="org.example.wechat.pojo.vo.PendingApplyVO">
+        SELECT
+            gu.group_mem_id AS groupMemId,
+            gu.user_id,
+            u.user_nickname AS userName,
+            u.user_avatar,
+            gu.apply_remark,
+            gu.created_time
+        FROM biz_group_user gu
+        LEFT JOIN biz_user u ON gu.user_id = u.sys_user_id
+        WHERE gu.group_id = #{groupId} AND gu.check_result = 2 AND gu.apply_type = 0
+        ORDER BY gu.created_time ASC
+    </select>
+
+</mapper>
