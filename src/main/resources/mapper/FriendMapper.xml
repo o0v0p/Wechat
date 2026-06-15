@@ -6,20 +6,26 @@
     </resultMap>
     <select id="getfriendList" resultType="org.example.wechat.pojo.vo.FriendListVO">
         SELECT
-            uf.friend_id as friendID,
-            u.user_name as friendName,
-            COALESCE(f.nickname, u.user_nickname) as nickname,
-            u.user_avatar as avatar,
-            c.category_id as categoryID,
-            CONCAT(LEAST(uf.user_id, uf.friend_id), '_', GREATEST(uf.user_id, uf.friend_id)) as chatId
-        FROM biz_user_friend uf
-        INNER JOIN biz_user u ON uf.friend_id = u.sys_user_id AND u.is_deleted = 0
-        LEFT JOIN biz_friend f ON f.sys_friend_id = uf.friend_id
-            AND f.friend_name = u.user_name AND f.creator_id = uf.user_id
-        LEFT JOIN biz_category c ON f.category_id = c.category_id
-        WHERE uf.user_id = #{userId}
-          AND uf.status = 1
-        ORDER BY c.category_id, f.is_top DESC, COALESCE(f.nickname, u.user_nickname)
+            u.sys_user_id AS friendID,
+            u.user_nickname AS nickname,
+            u.user_avatar AS avatar,
+            u.is_deleted AS isDeleted
+        FROM biz_user u
+                 INNER JOIN (
+            SELECT
+                CASE
+                    WHEN user_id = #{userId} THEN friend_id
+                    ELSE user_id
+                    END AS friend_id
+            FROM biz_user_friend
+            WHERE status = 1
+              AND (user_id = #{userId} OR friend_id = #{userId})
+            GROUP BY
+                CASE
+                    WHEN user_id = #{userId} THEN friend_id
+                    ELSE user_id
+                    END
+        ) f ON u.sys_user_id = f.friend_id
     </select>
 
 </mapper>

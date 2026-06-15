@@ -21,7 +21,7 @@ public class BizInfo {
     private Long receiverId;
     private Integer receiverType;   // 聊天类型（0-单聊；1-群聊）
     private String context;
-    private Integer infoStatus;   // 消息状态（0-正常；1-撤销；2-引用；3-发送失败）
+    private Integer infoStatus;   // 消息状态（0-正常；1-撤销；2-引用；3-发送失败；4-删除）
     private Integer infoType;    // (1-文本；2-文件；3-图片；4-视频)
     private Integer isRead;
     private LocalDateTime createdTime;

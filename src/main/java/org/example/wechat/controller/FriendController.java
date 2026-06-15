@@ -21,7 +21,7 @@ import java.util.List;
 @RequestMapping("/friend")
 @Slf4j
 @Tag(name = "好友相关接口")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+
 public class FriendController {
     @Autowired
     private FriendService friendService;
@@ -69,7 +69,6 @@ public class FriendController {
     @GetMapping("/Profile")
     @Operation(summary = "获取好友详情信息", description = "获取好友详情信息接口")
     public Result<FriendDetailVO> OnFriendProfile(@RequestParam Long FriendId){
-
         log.info("获取好友详情信息");
         FriendDetailVO friendDetailVO = friendService.OnFriendProfile(FriendId);
         return Result.success("获取好友详情信息成功",friendDetailVO);

@@ -4,6 +4,10 @@
 <mapper namespace="org.example.wechat.dao.UserMapper">
     <resultMap id="BaseResultMap" type="org.example.wechat.pojo.entity.BizUser">
         <id column="sys_user_id" property="userId" />
+        <result column="user_name" property="userName" />
+        <result column="user_nickname" property="nickname" />
+        <result column="user_telephone" property="telephone" />
+        <result column="user_password" property="password" />
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="userId">
@@ -19,9 +23,9 @@
         UPDATE biz_user
         <set>
             <if test="userName != null and userName != ''">user_name = #{userName},</if>
-            <if test="nickname != null and nickname != ''">user_nickname = #{nickname},</if>
+            <if test="nickname != null">user_nickname = #{nickname},</if>
             <if test="password != null and password != ''">user_password = #{password},</if>
-            <if test="telephone != null and telephone != ''">user_telephone = #{telephone},</if>
+            <if test="telephone != null">user_telephone = #{telephone},</if>
             <if test="userAvatar != null and userAvatar != ''">user_avatar = #{userAvatar},</if>
             <if test="userStatus != null">user_status = #{userStatus},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>

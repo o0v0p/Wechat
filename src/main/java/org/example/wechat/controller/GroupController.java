@@ -19,7 +19,7 @@ import java.util.List;
 @RequestMapping("/group")
 @Slf4j
 @Tag(name = "群聊相关接口")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+
 public class GroupController {
 
     @Autowired

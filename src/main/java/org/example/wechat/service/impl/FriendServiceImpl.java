@@ -1,15 +1,19 @@
 package org.example.wechat.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.BiRecordUtils;
 import org.example.wechat.common.util.UserContext;
+import org.example.wechat.common.util.WsSessionManager;
 import org.example.wechat.dao.BlacklistMapper;
 import org.example.wechat.dao.CategoryMapper;
 import org.example.wechat.dao.FriendMapper;
 import org.example.wechat.dao.UserMapper;
 import org.example.wechat.pojo.dto.FriendApplyDTO;
 import org.example.wechat.pojo.entity.BizBlacklist;
+import org.example.wechat.pojo.entity.BizCategory;
 import org.example.wechat.pojo.entity.BizFriend;
 import org.example.wechat.pojo.entity.BizUser;
 import org.example.wechat.pojo.entity.BizFriendApply;
@@ -20,10 +24,12 @@ import org.example.wechat.service.FriendService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
@@ -41,6 +47,18 @@ public class FriendServiceImpl implements FriendService {
     @Autowired
     private BlacklistMapper blacklistMapper;
 
+    @Autowired
+    private WsSessionManager wsSessionManager;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    private static final String DEFAULT_CATEGORY_NAME = "我的好友";
+    private static final String FRIEND_APPLY_LOCK_PREFIX = "lock:friend:apply:";
+
     @Override
     public List<FriendListVO> OnFriendList() {
         Long userId = UserContext.getUserId();
@@ -56,37 +74,52 @@ public class FriendServiceImpl implements FriendService {
 
         Long userId = UserContext.getUserId();
         Long friendId = friendApplyDTO.getFriendId();
-        if (userId.equals(friendId) || friendId == null) {
+        if (friendId == null || userId.equals(friendId)) {
             throw BusinessException.badRequest("好友ID不可为用户ID或NULL");
         }
-        BizUser targetUser = userMapper.getByUserId(friendId);
-        if (targetUser == null) {
-            throw BusinessException.notFound("用户不存在");
-        }
-        if (targetUser.getIsDeleted() == 1) {
-            throw BusinessException.forbidden("对方账号已被注销或禁用");
-        }
-        if (friendMapper.checkIsFriend(userId, friendId) > 0) {
-            throw BusinessException.conflict("已经是好友关系");
-        }
-        BizBlacklist blacklist = blacklistMapper.findByUser(friendId, userId);
-        if (blacklist != null) {
-            throw new BusinessException("对方已将您拉黑，无法添加好友");
-        }
-        BizFriendApply pendingApply = friendMapper.getPendingApply(userId, friendId);
-        if (pendingApply != null) {
-            throw BusinessException.conflict("已发送过好友申请...");
-        }
-        BizFriendApply reverseApply = friendMapper.getPendingApply(friendId, userId);
-        if (reverseApply != null) {
-            throw BusinessException.conflict("对方已向你发送好友申请...");
-        }
 
-        BizFriendApply bizFriendApply = new BizFriendApply();
-        BeanUtils.copyProperties(friendApplyDTO, bizFriendApply);
-        bizFriendApply.setUserId(UserContext.getUserId());
-        bizFriendApply.setStatus(0);
-        friendMapper.addFriendApply(bizFriendApply);
+        String lockKey = buildFriendApplyLockKey(userId, friendId);
+        String lockValue = UUID.randomUUID().toString();
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, 5, TimeUnit.SECONDS);
+        if (!Boolean.TRUE.equals(locked)) {
+            throw BusinessException.conflict("好友申请正在处理中，请勿重复提交");
+        }
+        try {
+            BizUser targetUser = userMapper.getByUserId(friendId);
+            if (targetUser == null) {
+                throw BusinessException.notFound("用户不存在");
+            }
+            if (targetUser.getIsDeleted() == 1) {
+                throw BusinessException.forbidden("对方账号已被注销或禁用");
+            }
+            if (friendMapper.checkIsFriend(userId, friendId) > 0) {
+                throw BusinessException.conflict("已经是好友关系");
+            }
+            BizBlacklist blacklist = blacklistMapper.findByUser(friendId, userId);
+            if (blacklist != null) {
+                throw new BusinessException("对方已将您拉黑，无法添加好友");
+            }
+            BizFriendApply pendingApply = friendMapper.getPendingApply(userId, friendId);
+            if (pendingApply != null) {
+                throw BusinessException.conflict("已发送过好友申请...");
+            }
+            BizFriendApply reverseApply = friendMapper.getPendingApply(friendId, userId);
+            if (reverseApply != null) {
+                throw BusinessException.conflict("对方已向你发送好友申请...");
+            }
+
+            BizFriendApply bizFriendApply = new BizFriendApply();
+            BeanUtils.copyProperties(friendApplyDTO, bizFriendApply);
+            bizFriendApply.setUserId(userId);
+            bizFriendApply.setStatus(0);
+            friendMapper.addFriendApply(bizFriendApply);
+            sendFriendNotice(friendId, "friend_apply", userId, "收到新的好友申请");
+        } finally {
+            Object currentValue = redisTemplate.opsForValue().get(lockKey);
+            if (lockValue.equals(String.valueOf(currentValue))) {
+                redisTemplate.delete(lockKey);
+            }
+        }
 
     }
 
@@ -111,8 +144,10 @@ public class FriendServiceImpl implements FriendService {
             if (currentUser == null || targetUser == null) {
                 throw BusinessException.notFound("用户信息不存在");
             }
-            Long defaultCategory = 1L;           // TODO : 设默认分组
-            BiRecordUtils.BiRecordPair pair = BiRecordUtils.createFullBiRecord(receiveApply, userId, currentUser, targetUser, defaultCategory,remark);
+            Long currentDefaultCategory = getOrCreateDefaultCategory(userId);
+            Long targetDefaultCategory = getOrCreateDefaultCategory(receiveApply.getUserId());
+            BiRecordUtils.BiRecordPair pair = BiRecordUtils.createFullBiRecord(
+                    receiveApply, userId, currentUser, targetUser, currentDefaultCategory, targetDefaultCategory, remark);
             BizFriendApply forwardRecord = pair.getForward();
             BizFriendApply reverseRecord = pair.getReverse();
             BizFriend forwardFriend = pair.getForwardFriend();
@@ -121,10 +156,13 @@ public class FriendServiceImpl implements FriendService {
             friendMapper.addFriendApply(reverseRecord);
             friendMapper.addFriend(forwardFriend);
             friendMapper.addFriend(reverseFriend);
+            sendFriendNotice(receiveApply.getUserId(), "friend_apply_result", userId, "好友申请已通过");
+            sendFriendNotice(receiveApply.getUserId(), "friend_added", userId, "你们已经成为好友");
 
         } else if (status == 2) {  // 拒绝
             BizFriendApply rejectedRecord = BiRecordUtils.createFromRejectedApply(receiveApply);
             friendMapper.updateApply(rejectedRecord);
+            sendFriendNotice(receiveApply.getUserId(), "friend_apply_result", userId, "好友申请已拒绝");
         } else {
             throw BusinessException.badRequest("无效的操作状态");
         }
@@ -205,4 +243,42 @@ public class FriendServiceImpl implements FriendService {
         BiRecordUtils.processDelete(forwardFriend, reverseFriend, forwardApply, reverseApply, friendMapper, friendMapper, userId);
     }
 
+
+
+    private Long getOrCreateDefaultCategory(Long userId) {
+        List<BizCategory> categories = categoryMapper.getByUserId(userId);
+        if (categories != null) {
+            for (BizCategory category : categories) {
+                if (DEFAULT_CATEGORY_NAME.equals(category.getCategoryName())) {
+                    return category.getCategoryId();
+                }
+            }
+        }
+        BizCategory category = new BizCategory();
+        category.setUserId(userId);
+        category.setCategoryName(DEFAULT_CATEGORY_NAME);
+        categoryMapper.insertCategory(category);
+        return category.getCategoryId();
+    }
+
+    private String buildFriendApplyLockKey(Long userId, Long friendId) {
+        long minId = Math.min(userId, friendId);
+        long maxId = Math.max(userId, friendId);
+        return FRIEND_APPLY_LOCK_PREFIX + minId + ":" + maxId;
+    }
+
+    private void sendFriendNotice(Long toUserId, String type, Long operatorId, String message) {
+        if (toUserId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", type);
+            notice.put("operatorId", operatorId);
+            notice.put("message", message);
+            wsSessionManager.sendToUser(toUserId, objectMapper.writeValueAsString(notice));
+        } catch (JsonProcessingException e) {
+            log.error("好友通知推送序列化失败: toUserId={}, type={}, error={}", toUserId, type, e.getMessage());
+        }
+    }
 }

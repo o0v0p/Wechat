@@ -11,21 +11,23 @@ import org.example.wechat.pojo.entity.BizCategory;
 import org.example.wechat.pojo.entity.BizUser;
 import org.example.wechat.pojo.vo.*;
 import org.example.wechat.service.UserService;
+import org.example.wechat.service.TokenService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 
 @RestController
 @RequestMapping("/user")
 @Slf4j
 @Tag(name = "用户相关接口")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+
 public class UserController {
 
     @Autowired
@@ -33,6 +35,17 @@ public class UserController {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private TokenService tokenService;
+
+    @PostMapping("/avatar")
+    @Operation(summary = "上传用户头像", description = "上传用户头像接口")
+    public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        log.info("上传用户头像");
+        String avatarUrl = userService.uploadAvatar(file);
+        return Result.success("头像上传成功", avatarUrl);
+    }
 
     @PostMapping("/login")
     @Operation(summary = "用户登录", description = "用户登录接口")
@@ -65,12 +78,34 @@ public class UserController {
 
     }
 
+    @PostMapping("/code")
+    @Operation(summary = "发送验证码")
+    public Result<?> sendAuthCode(@RequestParam String telephone) {
+        log.info("发送验证码: telephone={}", telephone);
+        userService.sendAuthCode(telephone);
+        return Result.success("验证码发送成功");
+    }
+
     @PostMapping("/logout")
-    @Operation(summary = "用户退出", description = "用户退出接口")
-    public Result<Void> onUserExit() {
+    @Operation(summary = "用户退出登录", description = "退出当前登录状态（不注销账号）")
+    public Result<Void> onUserExit(HttpServletRequest request) {
         log.info("用户退出登录");
-        userService.onUserExit();
+        String token = extractToken(request);
+        userService.onUserLogout();
+        tokenService.invalidateToken(token);
         return Result.success("退出成功");
+    }
+
+    @PostMapping("/deactivate")
+    @Operation(summary = "注销账号", description = "永久注销当前账号，注销前需已转让所有群主身份")
+    public Result<Void> onUserDel(HttpServletRequest request) {
+        log.info("用户注销账号");
+        Long userId = UserContext.getUserId();
+        String token = extractToken(request);
+        userService.onUserDel();
+        tokenService.invalidateToken(token);
+        tokenService.invalidateAllTokensForUser(userId);
+        return Result.success("账号注销成功");
     }
 
     @PostMapping("/reset-password")
@@ -79,19 +114,22 @@ public class UserController {
 
         log.info("忘记密码:{}",userForgetPwdDTO);
         userService.onUserForgetPwd(userForgetPwdDTO);
-
         return Result.success();
 
     }
 
     @PostMapping("/password")
     @Operation(summary = "修改密码", description = "修改密码接口")
-    public Result<Void> onUserPassword(@RequestBody UserPasswordDTO userPasswordDTO) {
+    public Result<Void> onUserPassword(@RequestBody UserPasswordDTO userPasswordDTO, HttpServletRequest request) {
 
         log.info("修改密码:{}",userPasswordDTO);
+        Long userId = UserContext.getUserId();
+        String token = extractToken(request);
         userService.onUserPassword(userPasswordDTO);
+        tokenService.invalidateToken(token);
+        tokenService.invalidateAllTokensForUser(userId);
 
-        return Result.success();
+        return Result.success("密码修改成功，请重新登录");
 
     }
 
@@ -158,5 +196,20 @@ public class UserController {
         log.info("重命名好友类别");
         userService.OnRenameCategory(name,categoryId);
         return Result.success("重命名好友类别成功");
+    }
+
+
+    private String extractToken(HttpServletRequest request) {
+        String token = request.getHeader("Authorization");
+        if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        if (!StringUtils.hasText(token)) {
+            token = request.getHeader("token");
+        }
+        if (!StringUtils.hasText(token)) {
+            token = request.getParameter("token");
+        }
+        return token;
     }
 }

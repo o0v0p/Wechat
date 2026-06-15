@@ -1,5 +1,8 @@
 package org.example.wechat.pojo.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,10 +19,11 @@ public class GroupAddDTO {
 
     @NotNull(message = "成员列表不能为空")
     @Size(min = 1, message = "至少需要一个群成员")
+    @JsonSerialize(contentUsing = ToStringSerializer.class)
     private List<Long> memberIds;
 
     @Size(max = 255, message = "群头像URL长度不能超过255个字符")
-    private String groupAvatar;
+    private String groupAvatar = "/avatar/default-group.jpg";
 
     @Size(max = 200, message = "群描述长度不能超过200个字符")
     private String description;

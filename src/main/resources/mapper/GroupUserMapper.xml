@@ -66,6 +66,12 @@
         WHERE group_id = #{groupId} AND is_deleted = 0 AND check_result = 1
     </select>
 
+    <!-- 查询用户加入的所有群（含正式成员，用于注销时批量退群） -->
+    <select id="selectAllByUserId" resultType="org.example.wechat.pojo.entity.BizGroupUser">
+        SELECT * FROM biz_group_user
+        WHERE user_id = #{userId} AND is_deleted = 0 AND check_result = 1
+    </select>
+
     <select id="countByGroupId" resultType="int">
         SELECT COUNT(*) FROM biz_group_user
         WHERE group_id = #{groupId} AND is_deleted = 0 AND check_result = 1
@@ -73,7 +79,18 @@
 
     <select id="selectByMemId" resultType="org.example.wechat.pojo.entity.BizGroupUser">
         SELECT * FROM biz_group_user
-        WHERE group_id = #{groupId} AND user_id = #{userId} AND check_result != 0 AND is_deleted = 0
+        WHERE group_id = #{groupId} AND user_id = #{userId} AND check_result = 1 AND is_deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectPendingApply" resultType="org.example.wechat.pojo.entity.BizGroupUser">
+        SELECT * FROM biz_group_user
+        WHERE group_id = #{groupId}
+          AND user_id = #{userId}
+          AND apply_type = 0
+          AND check_result = 2
+          AND is_deleted = 0
+        LIMIT 1
     </select>
 
     <select id="selectApplyByUserId" resultType="org.example.wechat.pojo.vo.GroupApplyVO">
@@ -106,6 +123,7 @@
         FROM biz_group_user gu
         LEFT JOIN biz_user u ON gu.user_id = u.sys_user_id
         WHERE gu.group_id = #{groupId} AND gu.check_result = 2 AND gu.apply_type = 0
+          AND u.is_deleted = 0
         ORDER BY gu.created_time ASC
     </select>
 

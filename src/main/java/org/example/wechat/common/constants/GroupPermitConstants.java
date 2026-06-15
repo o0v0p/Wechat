@@ -7,20 +7,20 @@ package org.example.wechat.common.constants;
 public class GroupPermitConstants {
 
     /** 移除成员 */
-    public static final String MEMBER_KICK    = "member:kick";
+    public static final String MEMBER_KICK    = "踢出成员";
 
     /** 邀请成员 */
-    public static final String MEMBER_INVITE  = "member:invite";
+    public static final String MEMBER_INVITE  = "邀请成员";
 
     /** 编辑群信息 */
-    public static final String GROUP_EDIT     = "group:edit";
+    public static final String GROUP_EDIT     = "编辑群信息";
 
     /** 审核入群申请 */
-    public static final String APPLY_AUDIT    = "apply:audit";
+    public static final String APPLY_AUDIT    = "审核申请";
 
     /** 置顶/取消置顶消息 */
-    public static final String MESSAGE_PIN    = "message:pin";
+    public static final String MESSAGE_PIN    = "置顶消息";
 
     /** 删除消息 */
-    public static final String MESSAGE_DELETE = "message:delete";
+    public static final String MESSAGE_DELETE = "删除消息";
 }

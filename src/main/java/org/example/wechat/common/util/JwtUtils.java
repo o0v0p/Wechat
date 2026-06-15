@@ -40,6 +40,22 @@ public class JwtUtils {
         return getClaimFromToken(token, Claims::getExpiration);
     }
 
+    public Date getIssuedAtDateFromToken(String token) {
+        return getClaimFromToken(token, Claims::getIssuedAt);
+    }
+
+    public long getRemainingMillis(String token) {
+        Date expirationDate = getExpirationDateFromToken(token);
+        if (expirationDate == null) {
+            return 0L;
+        }
+        return expirationDate.getTime() - System.currentTimeMillis();
+    }
+
+    public Long getExpirationMillis() {
+        return expiration;
+    }
+
     public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = getAllClaimsFromToken(token);
         return claimsResolver.apply(claims);

@@ -5,6 +5,9 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.SignatureException;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.util.JwtUtils;
+import org.example.wechat.dao.UserMapper;
+import org.example.wechat.pojo.entity.BizUser;
+import org.example.wechat.service.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -37,6 +40,12 @@ public class WsJwtHandshakeInterceptor implements HandshakeInterceptor {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private TokenService tokenService;
+
+    @Autowired
+    private UserMapper userMapper;
+
     /**
      * 握手前：校验 Token
      * 返回 true  → 握手继续，连接建立
@@ -60,6 +69,15 @@ public class WsJwtHandshakeInterceptor implements HandshakeInterceptor {
             String username = jwtUtils.getUsernameFromToken(token);
             if (userId == null || username == null) {
                 log.warn("WebSocket 握手拒绝：token claims 为空，uri={}", request.getURI());
+                return false;
+            }
+            if (tokenService.isTokenInvalid(token)) {
+                log.warn("WebSocket 握手拒绝：Token 已失效，userId={}, uri={}", userId, request.getURI());
+                return false;
+            }
+            BizUser loginUser = userMapper.getByUserIdAny(userId);
+            if (loginUser == null || (loginUser.getIsDeleted() != null && loginUser.getIsDeleted() == 1)) {
+                log.warn("WebSocket 握手拒绝：用户不存在或已注销，userId={}, uri={}", userId, request.getURI());
                 return false;
             }
             // 把用户信息存入 attributes

@@ -1,5 +1,7 @@
 package org.example.wechat.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.constants.GroupRoleConstants;
@@ -8,6 +10,8 @@ import org.example.wechat.common.constants.GroupTypeConstants;
 import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.BizPermitChecker;
 import org.example.wechat.common.util.UserContext;
+import org.example.wechat.common.util.WsSessionManager;
+import org.example.wechat.config.AppConfig;
 import org.example.wechat.dao.*;
 import org.example.wechat.pojo.dto.GroupAddDTO;
 import org.example.wechat.pojo.dto.GroupUpdateDTO;
@@ -21,10 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,7 +33,16 @@ import java.util.stream.Collectors;
 public class GroupServiceImpl implements GroupService {
 
     @Autowired
+    private AppConfig appConfig;
+
+    @Autowired
     private GroupMapper groupMapper;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private WsSessionManager wsSessionManager;
 
     @Autowired
     private GroupUserMapper groupUserMapper;
@@ -60,17 +70,41 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public GroupListVO OnAddGroup(GroupAddDTO groupAddDTO) {
         BizGroup bizGroup = new BizGroup();
         BeanUtils.copyProperties(groupAddDTO, bizGroup);
+        if (bizGroup.getGroupAvatar() == null || bizGroup.getGroupAvatar().trim().isEmpty()) {
+            bizGroup.setGroupAvatar(appConfig.getDefaultGroupPath());
+        }
         bizGroup.setMaxNum(DEFAULT_MAX_NUM);
         bizGroup.setGroupType(GroupTypeConstants.GROUPTYPE_PUBLIC);
         Long userId = UserContext.getUserId();
+        LocalDateTime now = LocalDateTime.now();
         bizGroup.setOwnerId(userId);
-        int MemCount = 1 + (int) groupAddDTO.getMemberIds().stream()
-                .filter(id -> !id.equals(userId)).distinct().count();
-        if (MemCount > DEFAULT_MAX_NUM) {
+        List<Long> uniqueMemberIds = groupAddDTO.getMemberIds() == null
+                ? Collections.emptyList()
+                : groupAddDTO.getMemberIds().stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !id.equals(userId))
+                .distinct()
+                .collect(Collectors.toList());
+        int memCount = 1 + uniqueMemberIds.size();
+        if (memCount > DEFAULT_MAX_NUM) {
             throw BusinessException.badRequest("创建群时成员数不能超过 " + DEFAULT_MAX_NUM + " 人");
+        }
+        for (Long memberId : uniqueMemberIds) {
+            BizUser member = userMapper.getByUserIdAny(memberId);
+            if (member == null) {
+                throw BusinessException.badRequest("用户 " + memberId + " 不存在，创建群失败");
+            }
+            if (member.getIsDeleted() != null && member.getIsDeleted() == 1) {
+                throw BusinessException.badRequest("用户 " + memberId + " 已注销，无法加入群聊");
+            }
+            BizBlacklist blacklist = blacklistMapper.findByUser(memberId, userId);
+            if (blacklist != null) {
+                throw BusinessException.forbidden("用户 " + memberId + " 已将您拉黑，无法加入群聊");
+            }
         }
         int result = groupMapper.insert(bizGroup);
         if (result <= 0) {
@@ -79,16 +113,35 @@ public class GroupServiceImpl implements GroupService {
         List<BizGroupUser> membersToInsert = new ArrayList<>();
         // 群主
         membersToInsert.add(BizGroupUser.builder()
-                .groupId(bizGroup.getGroupId()).userId(userId).bizRoleId(GroupRoleConstants.ROLE_OWNER)
-                .applyType(0).checkResult(1).notDisturb(0).isTop(0).isDeleted(0)
+                .groupId(bizGroup.getGroupId())
+                .userId(userId)
+                .bizRoleId(GroupRoleConstants.ROLE_OWNER)
+                .applyType(0)
+                .checkResult(1)
+                .notDisturb(0)
+                .isTop(0)
+                .isDeleted(0)
+                .createdTime(now)
+                .updatedTime(now)
+                .creatorId(userId)
+                .updaterId(userId)
                 .build());
-        // 成员
-        groupAddDTO.getMemberIds().stream()
-                .filter(id -> !id.equals(userId)).distinct()
-                .forEach(memberId -> membersToInsert.add(BizGroupUser.builder()
-                        .groupId(bizGroup.getGroupId()).userId(memberId).bizRoleId(GroupRoleConstants.ROLE_MEMBER)
-                        .applyType(1).inviteBy(userId).checkResult(1).notDisturb(0).isTop(0).isDeleted(0)
-                        .build()));
+        // 初始成员
+        uniqueMemberIds.forEach(memberId -> membersToInsert.add(BizGroupUser.builder()
+                .groupId(bizGroup.getGroupId())
+                .userId(memberId)
+                .bizRoleId(GroupRoleConstants.ROLE_MEMBER)
+                .applyType(1)
+                .inviteBy(userId)
+                .checkResult(1)
+                .notDisturb(0)
+                .isTop(0)
+                .isDeleted(0)
+                .createdTime(now)
+                .updatedTime(now)
+                .creatorId(userId)
+                .updaterId(userId)
+                .build()));
         if (!membersToInsert.isEmpty()) {
             groupUserMapper.batchInsert(membersToInsert);
         }
@@ -111,6 +164,9 @@ public class GroupServiceImpl implements GroupService {
         if (group.getOwnerId().equals(userId) || GroupRoleConstants.ROLE_OWNER.equals(roleId)) {
             throw BusinessException.forbidden("不能修改群主角色");
         }
+        if (currentUser == null || currentUser.getIsDeleted() == 1 || currentUser.getCheckResult() != 1) {
+            throw BusinessException.forbidden("您不在该群聊中");
+        }
         if (!GroupRoleConstants.ROLE_OWNER.equals(currentUser.getBizRoleId())) {
             throw BusinessException.forbidden("非群主-无权限设置成员角色");
         }
@@ -118,7 +174,7 @@ public class GroupServiceImpl implements GroupService {
         if (targetUser == null || targetUser.getIsDeleted() == 1) {
             throw BusinessException.notFound("目标用户不在群中");
         }
-        groupUserMapper.updateMemberRole(groupId, userId, roleId);
+        groupUserMapper.updateMemberRole(groupId, userId, roleId, currentUserId);
     }
 
     @Override
@@ -172,18 +228,39 @@ public class GroupServiceImpl implements GroupService {
         if (group == null) {
             throw BusinessException.notFound("群聊不存在");
         }
-        if (!permissionChecker.isOwner(groupId, currentUserId)) {
+        if (!group.getOwnerId().equals(currentUserId)) {
             throw BusinessException.forbidden("只有群主可以解散群聊");
         }
+
+        // ★ 删除前先保存成员列表（删了就查不到了）
+        List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
         groupUserMapper.deleteByGroupId(groupId);
         int result = groupMapper.deleteById(groupId);
         if (result <= 0) {
             throw BusinessException.conflict("解散群聊失败");
         }
+
+        // ★ 推送：通知所有成员（含群主自己可选）群已解散
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_dismissed");
+            notice.put("groupId", groupId);
+            notice.put("groupName", group.getGroupName());
+            notice.put("message", "群聊 " + group.getGroupName() + " 已被解散");
+            String json = objectMapper.writeValueAsString(notice);
+            for (BizGroupUser member : members) {
+                if (!member.getUserId().equals(currentUserId)) {
+                    wsSessionManager.sendToUser(member.getUserId(), json);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            log.error("解散群聊推送序列化失败: {}", e.getMessage());
+        }
     }
 
     @Override
-    public void transferOwner(Long groupId, Long ownerId) {
+    @Transactional(rollbackFor = Exception.class) // ← 补上事务注解
+    public void transferOwner(Long groupId, Long newOwnerId) {
         Long currentUserId = UserContext.getUserId();
         BizGroup group = groupMapper.selectById(groupId);
         if (group == null) {
@@ -192,22 +269,53 @@ public class GroupServiceImpl implements GroupService {
         if (!group.getOwnerId().equals(currentUserId)) {
             throw BusinessException.forbidden("只有群主可以转让群聊");
         }
-        BizGroupUser newOwner = groupUserMapper.selectByMemId(groupId, ownerId);
+        if (currentUserId.equals(newOwnerId)) {
+            throw BusinessException.badRequest("不能将群主转让给自己");
+        }
+        BizUser newOwnerUser = userMapper.getByUserIdAny(newOwnerId);
+        if (newOwnerUser == null || (newOwnerUser.getIsDeleted() != null && newOwnerUser.getIsDeleted() == 1)) {
+            throw BusinessException.badRequest("新群主不存在或已注销");
+        }
+        BizGroupUser newOwner = groupUserMapper.selectByMemId(groupId, newOwnerId);
         if (newOwner == null || newOwner.getIsDeleted() == 1) {
             throw BusinessException.notFound("新群主不在群聊中或已退出");
         }
-        group.setOwnerId(ownerId);
+        group.setOwnerId(newOwnerId);
         int updateGroupResult = groupMapper.updateById(group);
         if (updateGroupResult <= 0) {
             throw BusinessException.conflict("更新群主失败");
         }
-        int oldOwnerUpdate = groupUserMapper.updateMemberRole(groupId, currentUserId, GroupRoleConstants.ROLE_MEMBER);
+        int oldOwnerUpdate = groupUserMapper.updateMemberRole(groupId, currentUserId, GroupRoleConstants.ROLE_MEMBER, currentUserId);
         if (oldOwnerUpdate <= 0) {
             throw BusinessException.conflict("更新原群主角色失败");
         }
-        int newOwnerUpdate = groupUserMapper.updateMemberRole(groupId, ownerId, GroupRoleConstants.ROLE_OWNER);
+        int newOwnerUpdate = groupUserMapper.updateMemberRole(groupId, newOwnerId, GroupRoleConstants.ROLE_OWNER, currentUserId);
         if (newOwnerUpdate <= 0) {
             throw BusinessException.conflict("更新新群主角色失败");
+        }
+
+        // ★ 推送：通知群内所有成员群主已变更
+        try {
+            BizUser oldOwnerUser = userMapper.getByUserId(currentUserId);
+            BizUser newOwnerInfo = userMapper.getByUserId(newOwnerId);
+            String oldName = oldOwnerUser != null ? oldOwnerUser.getNickname() : "原群主";
+            String newName = newOwnerInfo != null ? newOwnerInfo.getNickname() : "新群主";
+
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_owner_transferred");
+            notice.put("groupId", groupId);
+            notice.put("oldOwnerId", currentUserId);
+            notice.put("newOwnerId", newOwnerId);
+            notice.put("newOwnerName", newName);
+            notice.put("message", oldName + " 已将群主转让给 " + newName);
+            String json = objectMapper.writeValueAsString(notice);
+
+            List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
+            for (BizGroupUser member : members) {
+                wsSessionManager.sendToUser(member.getUserId(), json);
+            }
+        } catch (JsonProcessingException e) {
+            log.error("转让群主推送序列化失败: {}", e.getMessage());
         }
     }
 
@@ -224,7 +332,7 @@ public class GroupServiceImpl implements GroupService {
             throw BusinessException.forbidden("您不在该群聊中");
         }
         if (group.getOwnerId().equals(currentUserId)) {
-            int memberCount = groupUserMapper.countMem(groupId);
+            int memberCount = groupUserMapper.countByGroupId(groupId); // ← 改为 countByGroupId
             if (memberCount <= 1) {
                 dismissGroup(groupId);
                 return;
@@ -232,9 +340,34 @@ public class GroupServiceImpl implements GroupService {
                 throw BusinessException.badRequest("群主不能直接退出群聊，请先转让群主或解散群聊");
             }
         }
+
+        // ★ 推送前先拿成员列表（删除操作前）
+        List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
+
         int result = groupUserMapper.deleteByMem(groupId, currentUserId);
         if (result <= 0) {
             throw BusinessException.conflict("退出群聊失败");
+        }
+
+        // ★ 推送：通知群内其他成员有人退群
+        BizUser exitUser = userMapper.getByUserId(currentUserId);
+        String nickname = (exitUser != null && exitUser.getNickname() != null)
+                ? exitUser.getNickname() : "未知用户";
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_member_exit");
+            notice.put("groupId", groupId);
+            notice.put("userId", currentUserId);
+            notice.put("nickname", nickname);
+            notice.put("message", nickname + " 已退出群聊");
+            String json = objectMapper.writeValueAsString(notice);
+            for (BizGroupUser member : members) {
+                if (!member.getUserId().equals(currentUserId)) {
+                    wsSessionManager.sendToUser(member.getUserId(), json);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            log.error("退出群聊推送序列化失败: {}", e.getMessage());
         }
     }
 
@@ -244,40 +377,49 @@ public class GroupServiceImpl implements GroupService {
         if (memberIds == null || memberIds.isEmpty()) {
             throw BusinessException.badRequest("请选择要邀请的成员");
         }
-        BizGroup group = groupMapper.selectById(groupId);
+        // 对群记录加行锁，串行化“查人数 + 插入成员”流程，避免并发邀请导致人数超限。
+        BizGroup group = groupMapper.selectByIdForUpdate(groupId);
         if (group == null) {
             throw BusinessException.notFound("群聊不存在");
         }
         Long curUserId = UserContext.getUserId();
-        permissionChecker.checkPermission(groupId, curUserId,
-                GroupPermitConstants.MEMBER_INVITE, "无权限邀请成员");
-        int currentCount = groupUserMapper.countMem(groupId);
-        if (currentCount + memberIds.size() > group.getMaxNum()) {
-            throw BusinessException.badRequest("邀请人数超过群成员上限（最多" + group.getMaxNum() + "人）");
-        }
+        LocalDateTime now = LocalDateTime.now();
+        permissionChecker.checkPermission(
+                groupId,
+                curUserId,
+                GroupPermitConstants.MEMBER_INVITE,
+                "无权限邀请成员"
+        );
         List<Long> uniqueMemberIds = memberIds.stream()
+                .filter(Objects::nonNull)
                 .distinct()
                 .filter(id -> !id.equals(curUserId))
-                .toList();
+                .collect(Collectors.toList());
         if (uniqueMemberIds.isEmpty()) {
             throw BusinessException.badRequest("没有有效的邀请成员");
         }
+        int currentCount = groupUserMapper.countByGroupId(groupId);
+        if (currentCount + uniqueMemberIds.size() > group.getMaxNum()) {
+            throw BusinessException.badRequest("邀请人数超过群成员上限（最多" + group.getMaxNum() + "人）");
+        }
         for (Long userId : uniqueMemberIds) {
-            BizUser targetUser = userMapper.getByUserId(userId);
+            BizUser targetUser = userMapper.getByUserIdAny(userId);
             if (targetUser == null) {
                 throw BusinessException.badRequest("用户 " + userId + " 不存在，邀请失败");
             }
-            BizGroupUser exist = groupUserMapper.selectByMemId(groupId, userId);
-            if (exist != null && exist.getIsDeleted() == 0) {
+            if (targetUser.getIsDeleted() != null && targetUser.getIsDeleted() == 1) {
+                throw BusinessException.badRequest("用户 " + userId + " 已注销，无法邀请");
+            }
+            BizGroupUser activeMember = groupUserMapper.selectByMemId(groupId, userId);
+            if (activeMember != null) {
                 throw BusinessException.badRequest("用户 " + userId + " 已在群中，邀请失败");
             }
             BizBlacklist blacklist = blacklistMapper.findByUser(userId, curUserId);
             if (blacklist != null) {
-                throw new BusinessException("该用户已将您拉黑，无法邀请进群");
+                throw BusinessException.forbidden("用户 " + userId + " 已将您拉黑，无法邀请进群");
             }
         }
         for (Long userId : uniqueMemberIds) {
-            // 清理该用户对该群尚待处理的自主申请
             groupUserMapper.clearMemApply(groupId, userId);
         }
         List<BizGroupUser> invitedUsers = uniqueMemberIds.stream()
@@ -294,9 +436,27 @@ public class GroupServiceImpl implements GroupService {
                         .applyRemark(null)
                         .checkBy(null)
                         .checkResult(1)
+                        .createdTime(now)
+                        .updatedTime(now)
+                        .creatorId(curUserId)
+                        .updaterId(curUserId)
                         .build())
                 .toList();
         groupUserMapper.batchInsert(invitedUsers);
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_invited");
+            notice.put("groupId", groupId);
+            notice.put("groupName", group.getGroupName());
+            notice.put("inviterId", curUserId);
+            notice.put("message", "你已被邀请加入群聊 " + group.getGroupName());
+            String json = objectMapper.writeValueAsString(notice);
+            for (Long userId : uniqueMemberIds) {
+                wsSessionManager.sendToUser(userId, json);
+            }
+        } catch (JsonProcessingException e) {
+            log.error("群邀请推送序列化失败: groupId={}, error={}", groupId, e.getMessage());
+        }
     }
 
     @Override
@@ -308,7 +468,7 @@ public class GroupServiceImpl implements GroupService {
         }
         long userId = UserContext.getUserId();
         if (!permissionChecker.isOwnerOrAdmin(dto.getGroupId(), userId)) {
-            throw BusinessException.forbidden("只有群主或管理员才有审核权限");
+            throw BusinessException.forbidden("只有群主或管理员才能修改群信息");
         }
         if (dto.getGroupName() != null && !dto.getGroupName().equals(existing.getGroupName())) {
             existing.setGroupName(dto.getGroupName());
@@ -326,6 +486,26 @@ public class GroupServiceImpl implements GroupService {
         if (result <= 0) {
             throw BusinessException.conflict("修改群信息失败");
         }
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_settings_update");
+            notice.put("groupId", dto.getGroupId());
+            notice.put("groupName", existing.getGroupName());
+            notice.put("groupAvatar", existing.getGroupAvatar());
+            notice.put("description", existing.getDescription());
+            notice.put("groupNotice", existing.getGroupNotice());
+            notice.put("action", "settings_changed");
+            notice.put("message", "群设置已更新");
+            String json = objectMapper.writeValueAsString(notice);
+            List<BizGroupUser> members = groupUserMapper.selectByGroupId(dto.getGroupId());
+            for (BizGroupUser member : members) {
+                if (member.getIsDeleted() == 0) {
+                    wsSessionManager.sendToUser(member.getUserId(), json);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            log.error("群设置更新推送序列化失败: {}", e.getMessage(), e);
+        }
     }
 
     @Override
@@ -336,7 +516,7 @@ public class GroupServiceImpl implements GroupService {
         }
         GroupDetailVO vo = new GroupDetailVO();
         BeanUtils.copyProperties(bizGroup, vo);
-        vo.setMemberCount(groupUserMapper.countMem(groupId));
+        vo.setMemberCount(groupUserMapper.countByGroupId(groupId));
         List<GroupMemberVO> members = getGroupMembers(groupId);
         vo.setMembers(members);
         return vo;
@@ -350,15 +530,22 @@ public class GroupServiceImpl implements GroupService {
         if (group == null) {
             throw BusinessException.notFound("群聊不存在");
         }
-        BizGroupUser existMember = groupUserMapper.selectByMemId(groupId, currentUserId);
-        if (existMember != null && existMember.getIsDeleted() == 0 && existMember.getCheckResult() == 1) {
-            throw BusinessException.conflict("您已有待处理的申请 / 已经是群成员");
+        BizGroupUser activeMember = groupUserMapper.selectByMemId(groupId, currentUserId);
+        if (activeMember != null) {
+            throw BusinessException.conflict("您已经是群成员");
+        }
+        BizGroupUser pendingApply = groupUserMapper.selectPendingApply(groupId, currentUserId);
+        if (pendingApply != null) {
+            throw BusinessException.conflict("您已有待处理的入群申请，请勿重复提交");
+        }
+        if (groupUserMapper.countByGroupId(groupId) >= group.getMaxNum()) {
+            throw BusinessException.badRequest("群成员已达上限，无法申请加入");
         }
         LocalDateTime now = LocalDateTime.now();
         BizGroupUser applyRecord = BizGroupUser.builder()
                 .groupId(groupId)
                 .userId(currentUserId)
-                .nickname(null)
+                .nickname(UserContext.getUsername())
                 .bizRoleId(GroupRoleConstants.ROLE_MEMBER)
                 .notDisturb(0)
                 .isTop(0)
@@ -377,12 +564,31 @@ public class GroupServiceImpl implements GroupService {
         if (result <= 0) {
             throw BusinessException.conflict("提交申请失败");
         }
+
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_apply");
+            notice.put("groupId", groupId);
+            notice.put("groupName", group.getGroupName());
+            notice.put("applyUserId", currentUserId);
+            notice.put("message", "收到新的入群申请");
+            String json = objectMapper.writeValueAsString(notice);
+            List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
+            for (BizGroupUser member : members) {
+                if (GroupRoleConstants.ROLE_OWNER.equals(member.getBizRoleId())
+                        || GroupRoleConstants.ROLE_ADMIN.equals(member.getBizRoleId())) {
+                    wsSessionManager.sendToUser(member.getUserId(), json);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            log.error("入群申请推送序列化失败: groupId={}, userId={}, error={}", groupId, currentUserId, e.getMessage());
+        }
     }
 
     @Override
     @Transactional
     public void auditApply(Long applyId, Integer checkResult) {
-        if(checkResult != 0 || checkResult != 1) {
+        if (checkResult == null || (checkResult != 0 && checkResult != 1)) {
             throw BusinessException.forbidden("非法审核结果，请明确同意/拒绝");
         }
         Long currentUserId = UserContext.getUserId();
@@ -400,7 +606,36 @@ public class GroupServiceImpl implements GroupService {
         if (!permissionChecker.isOwnerOrAdmin(group.getGroupId(), currentUserId)) {
             throw BusinessException.forbidden("只有群主或管理员才有审核权限");
         }
-        groupUserMapper.updateCheckResult(applyId, checkResult, currentUserId);
+        if (checkResult == 1) {
+            // 同意入群会新增正式成员，因此对群记录加行锁，避免多个审核并发通过后突破人数上限。
+            group = groupMapper.selectByIdForUpdate(apply.getGroupId());
+            if (group == null) {
+                throw BusinessException.notFound("群聊不存在");
+            }
+            BizUser applyUser = userMapper.getByUserIdAny(apply.getUserId());
+            if (applyUser == null || (applyUser.getIsDeleted() != null && applyUser.getIsDeleted() == 1)) {
+                throw BusinessException.badRequest("申请人不存在或已注销，无法通过申请");
+            }
+            if (groupUserMapper.countByGroupId(group.getGroupId()) >= group.getMaxNum()) {
+                throw BusinessException.badRequest("群成员已达上限，无法通过申请");
+            }
+        }
+        int rows = groupUserMapper.updateCheckResult(applyId, checkResult, currentUserId);
+        if (rows == 0) {
+            throw BusinessException.conflict("该申请已被处理");
+        }
+
+        try {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("type", "group_apply_result");
+            notice.put("groupId", group.getGroupId());
+            notice.put("groupName", group.getGroupName());
+            notice.put("checkResult", checkResult);
+            notice.put("message", checkResult == 1 ? "入群申请已通过" : "入群申请已拒绝");
+            wsSessionManager.sendToUser(apply.getUserId(), objectMapper.writeValueAsString(notice));
+        } catch (JsonProcessingException e) {
+            log.error("入群审核结果推送序列化失败: applyId={}, error={}", applyId, e.getMessage());
+        }
     }
 
     @Override

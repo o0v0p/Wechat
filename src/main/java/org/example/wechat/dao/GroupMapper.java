@@ -20,6 +20,13 @@ public interface GroupMapper {
     @Select("SELECT * FROM biz_group WHERE group_id = #{groupId}")
     BizGroup selectById(@Param("groupId") Long groupId);
 
+    /**
+     * 行锁查询：用于群成员数量上限校验等并发敏感场景。
+     * 仅在 @Transactional 事务内生效，要求数据库表使用 InnoDB。
+     */
+    @Select("SELECT * FROM biz_group WHERE group_id = #{groupId} FOR UPDATE")
+    BizGroup selectByIdForUpdate(@Param("groupId") Long groupId);
+
     int deleteById(@Param("groupId") Long groupId);
 
     @AutoFill(OperationType.UPDATE)

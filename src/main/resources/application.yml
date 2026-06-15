@@ -9,6 +9,24 @@ spring:
   sql:
     init:
       mode: never
+  data:
+    redis:
+      host: localhost       # Redis 主机
+      port: 6379            # Redis 端口
+      password: ""          # Redis 密码，如果没有留空
+      database: 0           # 数据库索引
+      timeout: 5s
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+aliyun:
+  oss:
+    endpoint: https://oss-cn-wuhan-lr.aliyuncs.com
+    access-key-id: LTAI5t6ATcRpdkN4UiCNJzfy
+    access-key-secret: FBIgauIs8T3Lr68X0MMyBprs7qzNmS
+    bucket-name: wuchat
 
 # SpringDoc OpenAPI 配置
 # 在现有配置下添加 springdoc 配置
@@ -80,8 +98,9 @@ mybatis-plus:
 
 app:
   avatar:
-    default-path: /avatar/default-avatar.png
-    default-url: http://localhost:8080/avatar/default-avatar.png
+    default-path: avatar/default-avatar.png
+    default-group-path: avatar/default-group.jpg
+    default-pic-path: Info/zPVONt7uOK.jpg
 
 # JWT 配置
 jwt:

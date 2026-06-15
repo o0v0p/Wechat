@@ -14,6 +14,11 @@ public interface UserMapper {
     @ResultMap("BaseResultMap")
     BizUser getByUserId(Long userId);
 
+    /** 不过滤 is_deleted，用于注销后仍需读取用户信息的场景 */
+    @Select("SELECT * FROM biz_user WHERE sys_user_id = #{userId}")
+    @ResultMap("BaseResultMap")
+    BizUser getByUserIdAny(Long userId);
+
     @Select("SELECT * FROM biz_user WHERE user_name = #{userName} AND is_deleted = 0")
     @ResultMap("BaseResultMap")
     BizUser getByUsername(String userName);

@@ -14,12 +14,15 @@ import java.util.List;
 public interface GroupUserMapper {
 
     // 正式成员
-    @AutoFill(OperationType.INSERT)
     int batchInsert(@Param("list") List<BizGroupUser> list);
 
     List<BizGroupUser> selectByGroupId(@Param("groupId") Long groupId);
 
+    /** 查询正式有效群成员：check_result=1 AND is_deleted=0 */
     BizGroupUser selectByMemId(@Param("groupId") Long groupId, @Param("userId") Long userId);
+
+    /** 查询待审核的自主入群申请：check_result=2 AND apply_type=0 AND is_deleted=0 */
+    BizGroupUser selectPendingApply(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
     int deleteByMem(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
@@ -30,19 +33,32 @@ public interface GroupUserMapper {
     @AutoFill(OperationType.UPDATE)
     int updateRole(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("roleId") Long roleId);
 
-    @Select("SELECT * FROM biz_group_user WHERE user_id = #{userId} AND is_deleted = 0")
+    @Select("SELECT * FROM biz_group_user WHERE user_id = #{userId} AND is_deleted = 0 AND check_result = 1")
     List<BizGroupUser> selectByUserId(@Param("userId") Long userId);
 
-    @Select("SELECT COUNT(*) FROM biz_group_user WHERE group_id = #{groupId} AND is_deleted = 0")
-    int countMem(@Param("groupId") Long groupId);
+    /** 查询用户的所有正式群成员记录（注销时退出所有群用） */
+    List<BizGroupUser> selectAllByUserId(@Param("userId") Long userId);
+
+    /** 查询用户作为群主且群人数 > 1 的群聊（注销前校验用） */
+    @Select("SELECT gu.* FROM biz_group_user gu " +
+            "INNER JOIN biz_group g ON gu.group_id = g.group_id " +
+            "WHERE gu.user_id = #{userId} AND gu.biz_role_id = #{ownerRoleId} " +
+            "  AND gu.is_deleted = 0 AND gu.check_result = 1 " +
+            "  AND (SELECT COUNT(*) FROM biz_group_user gu2 " +
+            "       WHERE gu2.group_id = gu.group_id AND gu2.is_deleted = 0 AND gu2.check_result = 1) > 1")
+    List<BizGroupUser> selectOwnerGroupsWithMultiMember(@Param("userId") Long userId,
+                                                         @Param("ownerRoleId") Long ownerRoleId);
 
     int batchDeleteMem(@Param("groupId") Long groupId,
                        @Param("userIds") List<Long> userIds);
 
-    @AutoFill(OperationType.UPDATE)
-    @Update("UPDATE biz_group_user SET biz_role_id = #{roleId}, updated_time = #{updatedTime}, updater_id = #{updaterId} " +
-            "WHERE group_id = #{groupId} AND user_id = #{userId}")
-    int updateMemberRole(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("roleId") Long roleId);
+    @Update("UPDATE biz_group_user " +
+            "SET biz_role_id = #{roleId}, updated_time = NOW(), updater_id = #{updaterId} " +
+            "WHERE group_id = #{groupId} " +
+            "  AND user_id = #{userId} " +
+            "  AND is_deleted = 0 " +
+            "  AND check_result = 1")
+    int updateMemberRole(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("roleId") Long roleId, @Param("updaterId") Long updaterId);
 
     @Select("SELECT " +
             "    gu.user_id, " +
@@ -54,7 +70,7 @@ public interface GroupUserMapper {
             "FROM biz_group_user gu " +
             "LEFT JOIN biz_user u ON gu.user_id = u.sys_user_id " +
             "LEFT JOIN biz_role r ON gu.biz_role_id = r.role_id " +
-            "WHERE gu.group_id = #{groupId} AND gu.is_deleted = 0")
+            "WHERE gu.group_id = #{groupId} AND gu.is_deleted = 0 AND gu.check_result = 1 AND u.is_deleted = 0")
     List<GroupMemberVO> selectGroupMembersWithRole(@Param("groupId") Long groupId);
 
     // 申请中
@@ -68,9 +84,13 @@ public interface GroupUserMapper {
 
     List<PendingApplyVO> selectPendingByGroupId(@Param("groupId") Long groupId);
 
-    @AutoFill(OperationType.UPDATE)
-    @Update("UPDATE biz_group_user SET check_result = #{checkResult}, check_by = #{checkBy}, updated_time = #{updatedTime} " +
-            "WHERE group_mem_id = #{groupMemId}")
+    @Update("UPDATE biz_group_user " +
+            "SET check_result = #{checkResult}, check_by = #{checkBy}, " +
+            "    created_time = CASE WHEN #{checkResult} = 1 THEN NOW() ELSE created_time END, " +
+            "    updated_time = NOW(), updater_id = #{checkBy} " +
+            "WHERE group_mem_id = #{groupMemId} " +
+            "  AND check_result = 2 " +
+            "  AND is_deleted = 0")
     int updateCheckResult(@Param("groupMemId") Long groupMemId,
                           @Param("checkResult") Integer checkResult,
                           @Param("checkBy") Long checkBy);

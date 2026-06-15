@@ -15,6 +15,12 @@ public interface FriendMapper {
 
     List<FriendListVO> getfriendList(@Param("userId") Long userId);
 
+    /** 查询与用户是好友关系（status=1）的所有对方用户ID（注销推送用） */
+    @Select("SELECT CASE WHEN user_id = #{userId} THEN friend_id ELSE user_id END AS friend_id " +
+            "FROM biz_user_friend " +
+            "WHERE status = 1 AND (user_id = #{userId} OR friend_id = #{userId})")
+    List<Long> getFriendIdsByUserId(@Param("userId") Long userId);
+
     @AutoFill(OperationType.INSERT)
     @Insert("INSERT INTO biz_user_friend (" +
             "user_id, friend_id, status, source, nickname," +
@@ -45,7 +51,8 @@ public interface FriendMapper {
             "LEFT JOIN biz_user u ON " +
             "  (a.user_id = #{userId} AND a.friend_id = u.sys_user_id) OR " +
             "  (a.friend_id = #{userId} AND a.user_id = u.sys_user_id) " +
-            "WHERE a.user_id = #{userId} OR a.friend_id = #{userId}")
+            "WHERE (a.user_id = #{userId} OR a.friend_id = #{userId}) " +
+            "  AND (u.is_deleted = 0 OR u.sys_user_id = #{userId})")
     List<FriendApplyVO> getApplyByUser(@Param("userId") Long userId);
 
     @Select("SELECT * FROM biz_user_friend WHERE user_friend_id = #{applyId}")
@@ -94,4 +101,17 @@ public interface FriendMapper {
             "(creator_id = #{userId} AND sys_friend_id = #{friendId}) OR " +
             "(creator_id = #{friendId} AND sys_friend_id = #{userId})")
     int deleteFriend(@Param("userId") Long userId, @Param("friendId") Long friendId);
+
+    @Select("<script>" +
+            "SELECT friend_id FROM biz_user_friend " +
+            "WHERE user_id = #{userId} AND status = #{status} " +
+            "  AND friend_id IN <foreach item='id' collection='ids' open='(' separator=',' close=')'>#{id}</foreach>" +
+            " UNION " +
+            "SELECT user_id FROM biz_user_friend " +
+            "WHERE friend_id = #{userId} AND status = #{status} " +
+            "  AND user_id IN <foreach item='id' collection='ids' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<Long> batchRelationIds(@Param("userId") Long userId,
+                                @Param("ids") List<Long> ids,
+                                @Param("status") int status);
 }

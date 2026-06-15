@@ -4,7 +4,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -15,15 +18,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * WebSocket Session 管理器
+ * WebSocket Session 管理器（唯一 session 数据来源）
  *
- * 职责：单一——只管 session 存取和消息推送，不涉及任何业务逻辑
- * 目的：切断 ChatWebSocketHandler ↔ ChatServiceImpl 的循环依赖
+ * 职责：
+ *   1. session 注册/注销
+ *   2. 消息异步推送（pushExecutor 线程池）
+ *   3. 心跳超时清理（定时任务）
+ *   4. 群聊已读游标（Redis）
  *
  * 依赖关系：
- *   WsSessionManager  ← ChatWebSocketHandler（注册/注销 session）
- *   WsSessionManager  ← ChatServiceImpl（推送消息）
- *   WsSessionManager 本身不依赖任何业务 Bean，无循环
+ *   WsSessionManager  ← WebSocketHandler（注册/注销 session，委托推送）
+ *   WsSessionManager  ← ChatServiceImpl（调用 sendToUser / updateGroupLastRead）
+ *   WsSessionManager 本身不依赖任何业务 Bean，无循环依赖
  */
 @Slf4j
 @Component
@@ -33,32 +39,28 @@ public class WsSessionManager {
     @Qualifier("pushExecutor")
     private ExecutorService pushExecutor;
 
-    // userId → session
-    private final ConcurrentHashMap<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
-
-    // 用户级发送锁：防止 isOpen() 与 sendMessage() 之间的竞态
-    private final ConcurrentHashMap<Long, ReentrantLock> sendLocks = new ConcurrentHashMap<>();
-
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    // ── userId → session（唯一来源，WebSocketHandler 和 ChatServiceImpl 均通过此处访问）──
+    private final ConcurrentHashMap<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
+
+    // ── 用户级发送锁：防止 isOpen() 与 sendMessage() 之间的竞态 ──
+    private final ConcurrentHashMap<Long, ReentrantLock> sendLocks = new ConcurrentHashMap<>();
+
+    // ── sessionId → 最后心跳时间（毫秒） ──
+    private final ConcurrentHashMap<String, Long> lastHeartbeatMap = new ConcurrentHashMap<>();
+
     private static final String GROUP_READ_KEY_PREFIX = "group:lastRead:";
 
-    public void updateGroupLastRead(String key, Long infoId) {
-        redisTemplate.opsForValue().set(GROUP_READ_KEY_PREFIX + key, infoId);
-    }
-
-    public Long getGroupLastRead(String key) {
-        Object val = redisTemplate.opsForValue().get(GROUP_READ_KEY_PREFIX + key);
-        return val == null ? null : Long.parseLong(val.toString());
-    }
-
     // ══════════════════ session 注册/注销 ══════════════════
+
     /**
      * 注册新 session，返回被替换的旧 session（断线重连时由 Handler 负责关闭旧连接）
      */
     public WebSocketSession register(Long userId, WebSocketSession session) {
         sendLocks.putIfAbsent(userId, new ReentrantLock());
+        lastHeartbeatMap.put(session.getId(), System.currentTimeMillis());
         return sessions.put(userId, session);
     }
 
@@ -67,7 +69,8 @@ public class WsSessionManager {
      */
     public void unregister(Long userId, WebSocketSession session) {
         sessions.remove(userId, session);
-        // 注意：不移除 sendLocks，锁对象可复用，下次重连无需重建
+        lastHeartbeatMap.remove(session.getId());
+        // sendLocks 不移除：锁对象可复用，下次重连无需重建
     }
 
     /**
@@ -78,17 +81,68 @@ public class WsSessionManager {
         return session != null && session.isOpen();
     }
 
+    // ══════════════════ 心跳 ══════════════════
+
+    /**
+     * 刷新心跳时间（由 WebSocketHandler 在收到 ping 时调用）
+     */
+    public void refreshHeartbeat(String sessionId) {
+        lastHeartbeatMap.put(sessionId, System.currentTimeMillis());
+    }
+
+    /**
+     * 每 30 秒扫描一次，踢掉 90 秒无心跳的僵尸连接
+     */
+    @Scheduled(fixedDelay = 30_000)
+    public void evictDeadSessions() {
+        long now = System.currentTimeMillis();
+        long timeout = 90_000L;
+        lastHeartbeatMap.forEach((sessionId, lastTime) -> {
+            if (now - lastTime > timeout) {
+                sessions.forEach((uid, s) -> {
+                    if (s.getId().equals(sessionId)) {
+                        log.warn("心跳超时，强制断开: userId={}, sessionId={}", uid, sessionId);
+                        closeSession(s, new CloseStatus(4002, "心跳超时"));
+                    }
+                });
+            }
+        });
+    }
+
     // ══════════════════ 消息推送 ══════════════════
+
     /**
      * 异步推送消息给指定用户
-     * 调用方立即返回，实际发送由 pushExecutor 线程池完成
+     * 调用方（HTTP 请求线程或 WS handler 线程）立即返回，由 pushExecutor 线程池实际发送
      */
     public void sendToUser(Long userId, String message) {
+        if (userId == null || message == null) {
+            return;
+        }
+
+        // 如果当前处于数据库事务中，推送延迟到事务成功提交后再执行。
+        // 避免事务后续回滚时，前端已经收到“不存在的消息/状态”。
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doSendToUser(userId, message);
+                }
+            });
+            return;
+        }
+
+        doSendToUser(userId, message);
+    }
+
+    private void doSendToUser(Long userId, String message) {
         WebSocketSession session = sessions.get(userId);
         if (session == null || !session.isOpen()) {
             log.debug("用户 {} 不在线，消息降级为离线（已入库）", userId);
             return;
         }
+        log.info("ws推送消息: userId={}, online={}, message={}", userId, session != null && session.isOpen(), message);
         pushExecutor.execute(() -> doSend(userId, session, message));
     }
 
@@ -102,14 +156,25 @@ public class WsSessionManager {
             }
         } catch (IOException e) {
             log.error("推送失败: userId={}, error={}", userId, e.getMessage());
-            // 发送失败说明连接已异常，移除僵尸 session
-            sessions.remove(userId, session);
+            sessions.remove(userId, session); // 移除僵尸 session
         } finally {
             lock.unlock();
         }
     }
 
-    // ══════════════════ 内部访问（供 Handler 使用）══════════════════
+    // ══════════════════ 群聊已读游标（Redis）══════════════════
+
+    public void updateGroupLastRead(String key, Long infoId) {
+        redisTemplate.opsForValue().set(GROUP_READ_KEY_PREFIX + key, infoId);
+    }
+
+    public Long getGroupLastRead(String key) {
+        Object val = redisTemplate.opsForValue().get(GROUP_READ_KEY_PREFIX + key);
+        return val == null ? null : Long.parseLong(val.toString());
+    }
+
+    // ══════════════════ 工具 ══════════════════
+
     /**
      * 关闭指定 session（供 Handler 在断线重连时关闭旧连接）
      */

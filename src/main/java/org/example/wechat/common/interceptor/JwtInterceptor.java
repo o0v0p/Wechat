@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
 import org.example.wechat.common.util.JwtUtils;
 import org.example.wechat.common.util.UserContext;
+import org.example.wechat.dao.UserMapper;
+import org.example.wechat.pojo.entity.BizUser;
+import org.example.wechat.service.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.stereotype.Component;
@@ -23,18 +26,23 @@ import java.io.PrintWriter;
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtils jwtUtils;
+    private final TokenService tokenService;
+    private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public JwtInterceptor(JwtUtils jwtUtils) {
+    public JwtInterceptor(JwtUtils jwtUtils, TokenService tokenService, UserMapper userMapper) {
         this.jwtUtils = jwtUtils;
+        this.tokenService = tokenService;
+        this.userMapper = userMapper;
         this.objectMapper = new ObjectMapper();
     }
 
     // 白名单路径
     private static final String[] WHITELIST = {
-            "/user/login", "/user/signup", "/doc.html","/user/reset-password",
-            "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**", "/avatar/**"
+            "/user/login", "/user/signup", "/user/code",
+            "/doc.html", "/user/reset-password",
+            "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**"
     };
 
     @Override
@@ -83,6 +91,22 @@ public class JwtInterceptor implements HandlerInterceptor {
             if (userId == null || username == null) {
                 log.warn("userId 或 username 为 null");
                 sendErrorResponse(response, 401, "Token 无效");
+                return false;
+            }
+            if (tokenService.isTokenInvalid(token)) {
+                log.warn("Token 已失效或已退出: userId={}", userId);
+                sendErrorResponse(response, 401, "登录已失效，请重新登录");
+                return false;
+            }
+            BizUser loginUser = userMapper.getByUserIdAny(userId);
+            if (loginUser == null) {
+                log.warn("Token 对应用户不存在: userId={}", userId);
+                sendErrorResponse(response, 401, "用户不存在，请重新登录");
+                return false;
+            }
+            if (loginUser.getIsDeleted() != null && loginUser.getIsDeleted() == 1) {
+                log.warn("已注销用户尝试访问接口: userId={}", userId);
+                sendErrorResponse(response, 401, "账号已注销，请重新登录");
                 return false;
             }
 

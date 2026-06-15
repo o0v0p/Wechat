@@ -7,15 +7,22 @@
         SELECT * FROM biz_info
         <choose>
             <when test="receiverType == 1">
-                <!-- 群聊：只要发给这个群的消息 -->
+                <!-- 群聊：撤回双方可见为灰字提示；发送失败只给发送者自己看；删除只让发送者自己看不见 -->
                 WHERE receiver_id = #{otherId}
                 AND receiver_type = 1
+                <if test="joinTime != null">
+                    AND created_time &gt;= #{joinTime}
+                </if>
+                AND (info_status != 3 OR sender_id = #{userId})
+                AND (info_status != 4 OR sender_id != #{userId})
             </when>
             <otherwise>
-                <!-- 单聊：双向匹配 -->
+                <!-- 单聊：撤回双方可见为灰字提示；发送失败只给发送者自己看；删除只让发送者自己看不见 -->
                 WHERE ((receiver_id = #{userId} AND sender_id = #{otherId})
                 OR  (sender_id = #{userId} AND receiver_id = #{otherId}))
                 AND receiver_type = 0
+                AND (info_status != 3 OR sender_id = #{userId})
+                AND (info_status != 4 OR sender_id != #{userId})
             </otherwise>
         </choose>
         <if test="lastInfoId != null and lastInfoId != 0">

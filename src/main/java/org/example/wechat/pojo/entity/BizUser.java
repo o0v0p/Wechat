@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @TableName("biz_user")
 @Schema(description = "用户实体")
 public class BizUser {
-    @TableId(value = "sys_user_id", type = IdType.AUTO)
+    @TableId(value = "sys_user_id")
     private Long  userId;
     @TableField("user_name")
     private String userName;

@@ -41,7 +41,7 @@
             g.group_name,
             g.group_avatar,
             g.description,
-            (SELECT COUNT(*) FROM biz_group_user WHERE group_id = g.group_id AND is_deleted = 0) as member_count
+            (SELECT COUNT(*) FROM biz_group_user WHERE group_id = g.group_id AND is_deleted = 0 AND check_result = 1) as member_count
         FROM biz_group g
         WHERE g.group_name LIKE #{keyword}
           AND g.group_type = 1

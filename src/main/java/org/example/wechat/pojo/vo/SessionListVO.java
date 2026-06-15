@@ -23,6 +23,12 @@ public class SessionListVO {
     @Schema(description = "最后一条消息内容")
     private String lastMessage;
 
+    @Schema(description = "最后一条消息发送者ID")
+    private Long lastSenderId;
+
+    @Schema(description = "最后一条消息状态（0-正常；1-撤回；2-引用；3-发送失败；4-删除）")
+    private Integer lastInfoStatus;
+
     @Schema(description = "最后消息时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime lastTime;

@@ -19,19 +19,11 @@ public class UserContext {
     }
 
     public static Long getUserId() {
-        Long userId = USER_ID_HOLDER.get();
-        if (userId == null) {
-            throw new IllegalStateException("用户未登录");
-        }
-        return userId;
+        return USER_ID_HOLDER.get();
     }
 
     public static String getUsername() {
-        String username = USERNAME_HOLDER.get();
-        if (username == null) {
-            throw new IllegalStateException("用户未登录");
-        }
-        return username;
+        return USERNAME_HOLDER.get();
     }
 
     public static void remove() {

@@ -9,5 +9,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.avatar")
 public class AppConfig {
     private String defaultPath;
-    private String defaultUrl;
+    private String defaultGroupPath;
+    private String defaultPicPath;
 }
