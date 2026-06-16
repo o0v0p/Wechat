@@ -42,8 +42,16 @@ public interface FriendMapper {
     @Options(useGeneratedKeys = true, keyProperty = "friendID", keyColumn = "sys_friend_id")
     int addFriend(BizFriend bizFriend);
 
-    @Select("SELECT a.*, " +
-            "u.user_name as friendName, " +
+    @Select("SELECT " +
+            "a.user_friend_id as userFriendId, " +
+            "a.friend_id as friendId, " +
+            "a.status, " +
+            "a.source, " +
+            "a.apply_remark as applyRemark, " +
+            "a.created_time as createdTime, " +
+            "a.updated_time as updatedTime, " +
+            "u.user_nickname as friendName, " +
+            "u.user_nickname as nickname, " +
             "u.user_avatar as avatar " +
             "FROM biz_user_friend a " +
             "LEFT JOIN biz_user u ON " +

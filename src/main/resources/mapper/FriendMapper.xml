@@ -7,7 +7,7 @@
     <select id="getfriendList" resultType="org.example.wechat.pojo.vo.FriendListVO">
         SELECT
             u.sys_user_id AS friendID,
-            u.user_name AS friendName,
+            u.user_nickname AS friendName,
             COALESCE(bf.nickname, u.user_nickname) AS nickname,
             u.user_avatar AS avatar,
             u.is_deleted AS isDeleted,

@@ -15,7 +15,7 @@ public class FriendApplyVO {
     @Schema(description = "被申请人ID")
     private Long friendId;
 
-    @Schema(description = "被申请人userName")
+    @Schema(description = "被申请人昵称")
     private String friendName;
 
     @Schema(description = "被申请人头像")
@@ -24,7 +24,7 @@ public class FriendApplyVO {
     @Schema(description = "申请备注")
     private String applyRemark;
 
-    @Schema(description = "对好友昵称")
+    @Schema(description = "被申请人昵称（与friendName一致，保证前端展示的是用户昵称而非备注）")
     private String nickname;
 
     @Schema(description = "来源")
