@@ -7,9 +7,11 @@
     <select id="getfriendList" resultType="org.example.wechat.pojo.vo.FriendListVO">
         SELECT
             u.sys_user_id AS friendID,
-            u.user_nickname AS nickname,
+            u.user_name AS friendName,
+            COALESCE(bf.nickname, u.user_nickname) AS nickname,
             u.user_avatar AS avatar,
-            u.is_deleted AS isDeleted
+            u.is_deleted AS isDeleted,
+            bf.category_id AS categoryID
         FROM biz_user u
                  INNER JOIN (
             SELECT
@@ -26,6 +28,8 @@
                     ELSE user_id
                     END
         ) f ON u.sys_user_id = f.friend_id
+                 LEFT JOIN biz_friend bf
+                           ON bf.creator_id = #{userId} AND bf.sys_friend_id = u.sys_user_id
     </select>
 
 </mapper>

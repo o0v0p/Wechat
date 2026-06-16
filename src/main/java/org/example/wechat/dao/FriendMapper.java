@@ -97,6 +97,18 @@ public interface FriendMapper {
                      @Param("friendId") Long friendId,
                      @Param("userId") Long userId);
 
+    @Update("<script>" +
+            "UPDATE biz_friend SET " +
+            "  <if test='dto.nickname != null'>nickname = #{dto.nickname}, </if>" +
+            "  <if test='dto.notDisturb != null'>not_disturb = #{dto.notDisturb}, </if>" +
+            "  <if test='dto.isTop != null'>is_top = #{dto.isTop}, </if>" +
+            "  <if test='dto.categoryId != null'>category_id = #{dto.categoryId}, </if>" +
+            "  updated_time = NOW(), updater_id = #{userId} " +
+            "WHERE creator_id = #{userId} AND sys_friend_id = #{dto.friendId}" +
+            "</script>")
+    int updateFriendSettings(@Param("dto") org.example.wechat.pojo.dto.FriendSettingsDTO dto,
+                             @Param("userId") Long userId);
+
     @Delete("DELETE FROM biz_friend WHERE " +
             "(creator_id = #{userId} AND sys_friend_id = #{friendId}) OR " +
             "(creator_id = #{friendId} AND sys_friend_id = #{userId})")

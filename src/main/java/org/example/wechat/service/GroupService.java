@@ -42,4 +42,6 @@ public interface GroupService {
 
     List<RoleVO> getAllRoles();
 
+    void updateMemberSettings(org.example.wechat.pojo.dto.GroupMemberSettingsDTO dto);
+
 }

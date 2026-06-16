@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
 import org.example.wechat.common.util.JwtUtils;
 import org.example.wechat.pojo.dto.FriendApplyDTO;
+import org.example.wechat.pojo.dto.FriendSettingsDTO;
 import org.example.wechat.pojo.entity.BizCategory;
 import org.example.wechat.pojo.vo.*;
 import org.example.wechat.service.FriendService;
@@ -91,9 +92,17 @@ public class FriendController {
         return Result.success("修改好友备注成功");
     }
 
+    @PutMapping("/settings")
+    @Operation(summary = "修改好友设置", description = "统一修改好友备注、免打扰、置顶、分组")
+    public Result<Void> updateFriendSettings(@RequestBody FriendSettingsDTO dto) {
+        log.info("修改好友设置: {}", dto);
+        friendService.updateFriendSettings(dto);
+        return Result.success("修改好友设置成功");
+    }
+
     @DeleteMapping("/delete")
     @Operation(summary = "删除好友", description = "删除好友")
-    public Result<Void> OnUpdateRemark(@RequestParam Long friendId){
+    public Result<Void> OnDeleteFriend(@RequestParam Long friendId){
         log.info("删除好友");
         friendService.OnDeleteFriend(friendId);
         return Result.success("删除好友成功");

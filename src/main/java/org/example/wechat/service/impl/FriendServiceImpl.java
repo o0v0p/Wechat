@@ -236,14 +236,42 @@ public class FriendServiceImpl implements FriendService {
         }
         if(friendMapper.checkIsFriend(userId,friendId) <= 0)
             throw BusinessException.notFound("好友关系不存在");
-        BizFriend forwardFriend = friendMapper.getByFriendId(userId, friendId);
-        BizFriend reverseFriend = friendMapper.getByFriendId(friendId, userId);
-        BizFriendApply forwardApply=friendMapper.getByRelation(userId, friendId);
-        BizFriendApply reverseApply=friendMapper.getByRelation(friendId, userId);
-        BiRecordUtils.processDelete(forwardFriend, reverseFriend, forwardApply, reverseApply, friendMapper, friendMapper, userId);
+        try {
+            BizFriend forwardFriend = friendMapper.getByFriendId(userId, friendId);
+            BizFriend reverseFriend = friendMapper.getByFriendId(friendId, userId);
+            BizFriendApply forwardApply=friendMapper.getByRelation(userId, friendId);
+            BizFriendApply reverseApply=friendMapper.getByRelation(friendId, userId);
+            BiRecordUtils.processDelete(forwardFriend, reverseFriend, forwardApply, reverseApply, friendMapper, friendMapper, userId);
+        } catch (Exception e) {
+            log.error("删除好友失败: userId={}, friendId={}, error={}", userId, friendId, e.getMessage(), e);
+            throw e;
+        }
     }
 
 
+
+    @Override
+    @Transactional
+    public void updateFriendSettings(org.example.wechat.pojo.dto.FriendSettingsDTO dto) {
+        Long userId = UserContext.getUserId();
+        if (dto.getFriendId() == null) {
+            throw BusinessException.badRequest("好友ID不可为空");
+        }
+        if (friendMapper.checkIsFriend(userId, dto.getFriendId()) <= 0) {
+            throw BusinessException.notFound("好友关系不存在");
+        }
+        // 如果传了 categoryId，校验分组是否属于当前用户
+        if (dto.getCategoryId() != null) {
+            BizCategory category = categoryMapper.getById(dto.getCategoryId());
+            if (category == null || !category.getUserId().equals(userId)) {
+                throw BusinessException.notFound("分组不存在");
+            }
+        }
+        int rows = friendMapper.updateFriendSettings(dto, userId);
+        if (rows != 1) {
+            throw BusinessException.conflict("修改好友设置失败");
+        }
+    }
 
     private Long getOrCreateDefaultCategory(Long userId) {
         List<BizCategory> categories = categoryMapper.getByUserId(userId);

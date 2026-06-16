@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
 import org.example.wechat.pojo.dto.GroupAddDTO;
+import org.example.wechat.pojo.dto.GroupMemberSettingsDTO;
 import org.example.wechat.pojo.dto.GroupUpdateDTO;
 import org.example.wechat.pojo.entity.BizRole;
 import org.example.wechat.pojo.vo.*;
@@ -132,6 +133,13 @@ public class GroupController {
     public Result<List<UserGroupVO>> getUserGroups() {
         List<UserGroupVO> list = groupService.getUserGroups();
         return Result.success("获取成功", list);
+    }
+
+    @PutMapping("/member/settings")
+    @Operation(summary = "设置群成员个人设置", description = "设置群昵称、免打扰、置顶")
+    public Result<Void> updateMemberSettings(@RequestBody GroupMemberSettingsDTO dto) {
+        groupService.updateMemberSettings(dto);
+        return Result.success("修改成功", null);
     }
 
     @PutMapping("/member/role")

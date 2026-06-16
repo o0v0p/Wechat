@@ -20,7 +20,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/user/login",
                         "/user/signup",
-                        "/user/code",
+                        "/user/sendCode",
                         "/user/reset-password",
                         "/doc.html",
                         "/swagger-ui/**",

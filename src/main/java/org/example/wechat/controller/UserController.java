@@ -78,7 +78,7 @@ public class UserController {
 
     }
 
-    @PostMapping("/code")
+    @PostMapping({"/code", "/sendCode"})
     @Operation(summary = "发送验证码")
     public Result<?> sendAuthCode(@RequestParam String telephone) {
         log.info("发送验证码: telephone={}", telephone);

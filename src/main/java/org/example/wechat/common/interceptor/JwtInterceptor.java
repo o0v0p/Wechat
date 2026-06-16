@@ -40,7 +40,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     // 白名单路径
     private static final String[] WHITELIST = {
-            "/user/login", "/user/signup", "/user/code",
+            "/user/login", "/user/signup", "/user/sendCode",
             "/doc.html", "/user/reset-password",
             "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**"
     };

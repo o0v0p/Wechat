@@ -25,4 +25,6 @@ public interface FriendService {
 
     void OnDeleteFriend(Long friendId);
 
+    void updateFriendSettings(org.example.wechat.pojo.dto.FriendSettingsDTO dto);
+
 }

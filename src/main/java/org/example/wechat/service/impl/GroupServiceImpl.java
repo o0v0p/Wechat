@@ -687,6 +687,27 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
+    @Transactional
+    public void updateMemberSettings(org.example.wechat.pojo.dto.GroupMemberSettingsDTO dto) {
+        Long userId = UserContext.getUserId();
+        if (dto.getGroupId() == null) {
+            throw BusinessException.badRequest("群ID不可为空");
+        }
+        BizGroup group = groupMapper.selectById(dto.getGroupId());
+        if (group == null) {
+            throw BusinessException.notFound("群聊不存在");
+        }
+        BizGroupUser member = groupUserMapper.selectByMemId(dto.getGroupId(), userId);
+        if (member == null || member.getIsDeleted() == 1) {
+            throw BusinessException.forbidden("您不在该群聊中");
+        }
+        int rows = groupUserMapper.updateMemberSettings(dto, userId);
+        if (rows != 1) {
+            throw BusinessException.conflict("修改个人设置失败");
+        }
+    }
+
+    @Override
     public List<RoleVO> getAllRoles() {
         List<BizRole> roles = roleMapper.selectAll();
         if (CollectionUtils.isEmpty(roles)) {

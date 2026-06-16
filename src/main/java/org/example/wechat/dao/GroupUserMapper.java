@@ -95,6 +95,18 @@ public interface GroupUserMapper {
                           @Param("checkResult") Integer checkResult,
                           @Param("checkBy") Long checkBy);
 
+    @Update("<script>" +
+            "UPDATE biz_group_user SET " +
+            "  <if test='dto.nickname != null'>nickname = #{dto.nickname}, </if>" +
+            "  <if test='dto.notDisturb != null'>not_disturb = #{dto.notDisturb}, </if>" +
+            "  <if test='dto.isTop != null'>is_top = #{dto.isTop}, </if>" +
+            "  updated_time = NOW(), updater_id = #{userId} " +
+            "WHERE group_id = #{dto.groupId} AND user_id = #{userId} " +
+            "  AND is_deleted = 0 AND check_result = 1" +
+            "</script>")
+    int updateMemberSettings(@Param("dto") org.example.wechat.pojo.dto.GroupMemberSettingsDTO dto,
+                             @Param("userId") Long userId);
+
     @Delete("DELETE FROM biz_group_user " +
             "WHERE group_id = #{groupId} AND user_id = #{userId} AND check_result = 2 AND apply_type = 0")
     int clearMemApply(@Param("groupId") Long groupId, @Param("userId") Long userId);
