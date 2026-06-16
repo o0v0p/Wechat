@@ -239,7 +239,7 @@ public class BiRecordUtils {
 
         BizFriend forwardFriend = new BizFriend();
         forwardFriend.setFriendID(targetUser.getUserId());      // friend_id = 对方用户ID
-        forwardFriend.setCategoryID(currentUserDefaultCategory);
+        forwardFriend.setCategoryId(currentUserDefaultCategory);
         forwardFriend.setFriendName(targetUser.getUserName());  // 对方的用户名
         forwardFriend.setNickname(remark);                         // 备注
         forwardFriend.setSignature(targetUser.getUserSignature()); // signature 与对方 user_signature 保持一致
@@ -253,7 +253,7 @@ public class BiRecordUtils {
         // reverseFriend: 对方用户的好友记录（friend_id = 当前用户ID, creator_id = 对方用户ID）
         BizFriend reverseFriend = new BizFriend();
         reverseFriend.setFriendID(currentUser.getUserId());      // friend_id = 当前用户ID
-        reverseFriend.setCategoryID(targetUserDefaultCategory);
+        reverseFriend.setCategoryId(targetUserDefaultCategory);
         reverseFriend.setFriendName(currentUser.getUserName());  // 当前用户的用户名
         reverseFriend.setNickname(forward.getNickname());                         // 备注同原申请里一致
         reverseFriend.setSignature(currentUser.getUserSignature()); // signature 与当前用户 user_signature 保持一致

@@ -14,7 +14,7 @@ public class BizFriend {
     @TableField("sys_friend_id")
     private Long friendID;
     @TableField("category_id")
-    private Long categoryID;
+    private Long categoryId;
     @TableField("friend_name")
     private String friendName;      // 好友userName
 

@@ -15,10 +15,8 @@ public interface FriendMapper {
 
     List<FriendListVO> getfriendList(@Param("userId") Long userId);
 
-    /** 查询与用户是好友关系（status=1）的所有对方用户ID（注销推送用） */
-    @Select("SELECT CASE WHEN user_id = #{userId} THEN friend_id ELSE user_id END AS friend_id " +
-            "FROM biz_user_friend " +
-            "WHERE status = 1 AND (user_id = #{userId} OR friend_id = #{userId})")
+    /** 查询与用户是好友关系（biz_friend 中有记录）的所有对方用户ID（注销推送用） */
+    @Select("SELECT sys_friend_id FROM biz_friend WHERE creator_id = #{userId}")
     List<Long> getFriendIdsByUserId(@Param("userId") Long userId);
 
     @AutoFill(OperationType.INSERT)
@@ -38,7 +36,7 @@ public interface FriendMapper {
             "signature, not_disturb, is_top, " +
             "created_time, updated_time, creator_id, updater_id) " +
             "VALUES (" +
-            "#{friendID}, #{categoryID}, #{friendName}, #{nickname}, " +
+            "#{friendID}, #{categoryId}, #{friendName}, #{nickname}, " +
             "#{signature}, #{notDisturb}, #{isTop}, " +
             "#{createdTime}, #{updatedTime}, #{creatorId}, #{updaterId})")
     @Options(useGeneratedKeys = true, keyProperty = "friendID", keyColumn = "sys_friend_id")
@@ -58,9 +56,16 @@ public interface FriendMapper {
     @Select("SELECT * FROM biz_user_friend WHERE user_friend_id = #{applyId}")
     BizFriendApply getByApplyId(@Param("applyId") Long applyId);
 
-    @Select("SELECT * FROM biz_user_friend WHERE friend_id = #{friendId} AND user_id = #{userId}")
+    @Select("SELECT * FROM biz_user_friend WHERE friend_id = #{friendId} AND user_id = #{userId} AND status = 1")
     BizFriendApply getByRelation(@Param("friendId") Long friendId, @Param("userId") Long userId);
 
+    @Results({
+            @Result(column = "sys_friend_id", property = "friendID"),
+            @Result(column = "creator_id", property = "creatorId"),
+            @Result(column = "updater_id", property = "updaterId"),
+            @Result(column = "created_time", property = "createdTime"),
+            @Result(column = "updated_time", property = "updatedTime")
+    })
     @Select("SELECT * FROM biz_friend WHERE sys_friend_id = #{friendId} AND creator_id = #{userId}")
     BizFriend getByFriendId(@Param("friendId") Long friendId,@Param("userId") Long userId);
 
@@ -71,10 +76,9 @@ public interface FriendMapper {
     @AutoFill(value = OperationType.UPDATE)
     int updateApply(BizFriendApply bizFriendApply);
 
-    @Select("SELECT COUNT(*) FROM biz_user_friend WHERE " +
-            "((user_id = #{userId} AND friend_id = #{friendId}) OR " +
-            "(user_id = #{friendId} AND friend_id = #{userId})) " +
-            "AND status = 1")
+    @Select("SELECT COUNT(*) FROM biz_friend WHERE " +
+            "(creator_id = #{userId} AND sys_friend_id = #{friendId}) OR " +
+            "(creator_id = #{friendId} AND sys_friend_id = #{userId})")
     int checkIsFriend(@Param("userId") Long userId, @Param("friendId") Long friendId);
 
     @Select("SELECT * FROM biz_user_friend WHERE " +
@@ -126,4 +130,13 @@ public interface FriendMapper {
     List<Long> batchRelationIds(@Param("userId") Long userId,
                                 @Param("ids") List<Long> ids,
                                 @Param("status") int status);
+
+    /** 批量查哪些用户是好友（基于 biz_friend） */
+    @Select("<script>" +
+            "SELECT sys_friend_id FROM biz_friend " +
+            "WHERE creator_id = #{userId} " +
+            "  AND sys_friend_id IN <foreach item='id' collection='ids' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<Long> batchFriendIds(@Param("userId") Long userId,
+                              @Param("ids") List<Long> ids);
 }

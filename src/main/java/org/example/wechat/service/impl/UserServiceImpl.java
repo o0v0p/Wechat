@@ -471,7 +471,7 @@ public class UserServiceImpl implements UserService {
         List<Long> candidateIds = userList.stream()
                 .map(BizUser::getUserId)
                 .collect(java.util.stream.Collectors.toList());
-        Set<Long> friendSet  = new java.util.HashSet<>(friendMapper.batchRelationIds(userId, candidateIds, 1));
+        Set<Long> friendSet  = new java.util.HashSet<>(friendMapper.batchFriendIds(userId, candidateIds));
         Set<Long> pendingSet = new java.util.HashSet<>(friendMapper.batchRelationIds(userId, candidateIds, 0));
         List<UserSearchVO> resultVO = new ArrayList<>();
         for (BizUser user : userList) {

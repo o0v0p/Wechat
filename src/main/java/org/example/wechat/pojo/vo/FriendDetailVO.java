@@ -29,7 +29,7 @@ public class FriendDetailVO {
     private String userSignature;
 
     @Schema(description = "所属分组ID")
-    private Long categoryID;
+    private Long categoryId;
 
     @Schema(description = "添加时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")

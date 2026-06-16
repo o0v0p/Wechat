@@ -12,7 +12,7 @@ public class FriendListVO {
     private String nickname;
     private String avatar;
     private String chatID;
-    private Long categoryID;
+    private Long categoryId;
     /** 0-正常，1-已注销 */
     private Integer isDeleted;
 }
