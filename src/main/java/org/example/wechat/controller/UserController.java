@@ -78,7 +78,7 @@ public class UserController {
 
     }
 
-    @PostMapping({"/code", "/sendCode"})
+    @PostMapping({"/code"})
     @Operation(summary = "发送验证码")
     public Result<?> sendAuthCode(@RequestParam String telephone) {
         log.info("发送验证码: telephone={}", telephone);
@@ -96,7 +96,7 @@ public class UserController {
         return Result.success("退出成功");
     }
 
-    @PostMapping("/deactivate")
+    @PostMapping({ "/delete"})
     @Operation(summary = "注销账号", description = "永久注销当前账号，注销前需已转让所有群主身份")
     public Result<Void> onUserDel(HttpServletRequest request) {
         log.info("用户注销账号");

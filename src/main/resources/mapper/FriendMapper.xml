@@ -15,6 +15,7 @@
         FROM biz_friend bf
                  INNER JOIN biz_user u ON bf.sys_friend_id = u.sys_user_id
         WHERE bf.creator_id = #{userId}
+          AND u.is_deleted = 0
     </select>
 
 </mapper>
