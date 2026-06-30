@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.constants.InfoStatusConstants;
+import org.example.wechat.common.constants.InfoTypeConstants;
 import org.example.wechat.common.constants.ReceiverTypeConstant;
 import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.UserContext;
@@ -98,6 +99,9 @@ public class ChatServiceImpl implements ChatService {
         }
         if (type == null) {
             throw BusinessException.forbidden("消息类型不能为空");
+        }
+        if (!Arrays.asList(InfoTypeConstants.TEXT, InfoTypeConstants.FILE, InfoTypeConstants.IMAGE, InfoTypeConstants.VIDEO).contains(type)) {
+            throw BusinessException.forbidden("无效的消息类型，请使用 " + InfoTypeConstants.TEXT + "(文本) " + InfoTypeConstants.FILE + "(文件) " + InfoTypeConstants.IMAGE + "(图片) " + InfoTypeConstants.VIDEO + "(视频)");
         }
         if (!Objects.equals(otherType, ReceiverTypeConstant.RECTYPE_PRIVATE)
                 && !Objects.equals(otherType, ReceiverTypeConstant.RECTYPE_PUBLIC)) {

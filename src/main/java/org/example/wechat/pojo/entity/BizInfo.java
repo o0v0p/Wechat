@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.wechat.common.constants.InfoTypeConstants;
 
 import java.time.LocalDateTime;
 
@@ -22,7 +23,8 @@ public class BizInfo {
     private Integer receiverType;   // 聊天类型（0-单聊；1-群聊）
     private String context;
     private Integer infoStatus;   // 消息状态（0-正常；1-撤销；2-引用；3-发送失败；4-删除）
-    private Integer infoType;    // (1-文本；2-文件；3-图片；4-视频)
+    @Schema(description = "1-文本，2-文件，3-图片，4-视频")
+    private Integer infoType;
     private Integer isRead;
     private LocalDateTime createdTime;
     private LocalDateTime updatedTime;
