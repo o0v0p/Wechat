@@ -12,6 +12,7 @@ import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.UserContext;
 import org.example.wechat.common.util.WsSessionManager;
 import org.example.wechat.dao.*;
+import org.example.wechat.pojo.dto.SessionUpdateMessage;
 import org.example.wechat.pojo.entity.*;
 import org.example.wechat.pojo.vo.FriendListVO;
 import org.example.wechat.pojo.vo.InfoHistoryVO;
@@ -287,27 +288,28 @@ public class ChatServiceImpl implements ChatService {
             String pushJson = objectMapper.writeValueAsString(wsMsg);
 
             // 接收方会话更新
-            Map<String, Object> receiverSessionUpdate = new HashMap<>();
-            receiverSessionUpdate.put("type", "session_update");
-            receiverSessionUpdate.put("sessionType", otherType);
-            receiverSessionUpdate.put("lastMessage", content);
-            receiverSessionUpdate.put("lastTime", vo.getCreatedTime());
-            receiverSessionUpdate.put("infoId", vo.getInfoId());
-            receiverSessionUpdate.put("senderId", vo.getSenderId());
-            receiverSessionUpdate.put("infoStatus", infoStatus);
-            receiverSessionUpdate.put("targetId",
-                    ReceiverTypeConstant.RECTYPE_PRIVATE == otherType ? userId : receiveId);
+            SessionUpdateMessage receiverSessionUpdate = new SessionUpdateMessage(
+                    "session_update",
+                    otherType,
+                    content,
+                    vo.getCreatedTime(),
+                    vo.getInfoId(),
+                    vo.getSenderId(),
+                    infoStatus,
+                    ReceiverTypeConstant.RECTYPE_PRIVATE == otherType ? userId : receiveId
+            );
 
             // 发送方会话更新
-            Map<String, Object> senderSessionUpdate = new HashMap<>();
-            senderSessionUpdate.put("type", "session_update");
-            senderSessionUpdate.put("sessionType", otherType);
-            senderSessionUpdate.put("lastMessage", content);
-            senderSessionUpdate.put("lastTime", vo.getCreatedTime());
-            senderSessionUpdate.put("infoId", vo.getInfoId());
-            senderSessionUpdate.put("senderId", vo.getSenderId());
-            senderSessionUpdate.put("infoStatus", infoStatus);
-            senderSessionUpdate.put("targetId", receiveId);
+            SessionUpdateMessage senderSessionUpdate = new SessionUpdateMessage(
+                    "session_update",
+                    otherType,
+                    content,
+                    vo.getCreatedTime(),
+                    vo.getInfoId(),
+                    vo.getSenderId(),
+                    infoStatus,
+                    receiveId
+            );
 
             String receiverSessionUpdateJson = objectMapper.writeValueAsString(receiverSessionUpdate);
             String senderSessionUpdateJson = objectMapper.writeValueAsString(senderSessionUpdate);

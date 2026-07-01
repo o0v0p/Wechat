@@ -31,4 +31,13 @@ public interface CategoryMapper {
 
     @Select("SELECT * FROM biz_category WHERE category_id = #{categoryId}")
     BizCategory getById(@Param("categoryId") Long categoryId);
+
+    @Update("UPDATE biz_friend SET category_id = #{targetCategoryId}, updated_time = NOW(), updater_id = #{userId} " +
+            "WHERE creator_id = #{userId} AND category_id = #{sourceCategoryId}")
+    int moveFriendsToCategory(@Param("userId") Long userId,
+                              @Param("sourceCategoryId") Long sourceCategoryId,
+                              @Param("targetCategoryId") Long targetCategoryId);
+
+    @Delete("DELETE FROM biz_category WHERE category_id = #{categoryId} AND user_id = #{userId}")
+    int deleteCategory(@Param("userId") Long userId, @Param("categoryId") Long categoryId);
 }

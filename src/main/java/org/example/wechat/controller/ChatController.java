@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
-import org.example.wechat.common.constants.InfoTypeConstants;
 import org.example.wechat.common.util.OssUtils;
 import org.example.wechat.pojo.vo.InfoHistoryVO;
 import org.example.wechat.pojo.vo.SessionListVO;
@@ -29,7 +28,7 @@ public class ChatController {
 
     @PostMapping("/send")
     @Operation(summary = "发送消息",
-               description = "发送消息接口。InfoType：" + InfoTypeConstants.TEXT + "-文本，" + InfoTypeConstants.FILE + "-文件，" + InfoTypeConstants.IMAGE + "-图片，" + InfoTypeConstants.VIDEO + "-视频；infoStatus：0-正常；2-引用；3-发送失败。撤回/删除请调用 /chat/status")
+               description = "发送消息接口。InfoType：1-文本，2-文件，3-图片，4-视频；infoStatus：0-正常；2-引用；3-发送失败。撤回/删除请调用 /chat/status")
     public Result<InfoHistoryVO> OnSendInfo(@RequestParam String context,
                                             @RequestParam Long receiveId,
                                             @RequestParam Integer InfoType,

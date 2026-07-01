@@ -37,5 +37,7 @@ public interface UserService {
 
     void OnRenameCategory(String name, Long categoryId);
 
+    void OnDeleteCategory(Long categoryId);
+
     String uploadAvatar(MultipartFile file);
 }

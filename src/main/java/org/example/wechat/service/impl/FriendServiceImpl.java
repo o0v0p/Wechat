@@ -149,11 +149,9 @@ public class FriendServiceImpl implements FriendService {
             BiRecordUtils.BiRecordPair pair = BiRecordUtils.createFullBiRecord(
                     receiveApply, userId, currentUser, targetUser, currentDefaultCategory, targetDefaultCategory, remark);
             BizFriendApply forwardRecord = pair.getForward();
-            BizFriendApply reverseRecord = pair.getReverse();
             BizFriend forwardFriend = pair.getForwardFriend();
             BizFriend reverseFriend = pair.getReverseFriend();
             friendMapper.updateApply(forwardRecord);
-            friendMapper.addFriendApply(reverseRecord);
             friendMapper.addFriend(forwardFriend);
             friendMapper.addFriend(reverseFriend);
             sendFriendNotice(receiveApply.getUserId(), "friend_apply_result", userId, "好友申请已通过");

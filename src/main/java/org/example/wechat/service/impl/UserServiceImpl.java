@@ -83,6 +83,7 @@ public class UserServiceImpl implements UserService {
     private static final long MAX_FILE_SIZE = 2 * 1024 * 1024;
     private static final String AUTH_CODE_KEY_PREFIX = "user:auth:code:";
     private static final String AUTH_CODE_RATE_PREFIX = "verify:rate:";
+    private static final String DEFAULT_CATEGORY_NAME = "\u6211\u7684\u597d\u53cb";
 
     @Override
     @Transactional
@@ -183,7 +184,7 @@ public class UserServiceImpl implements UserService {
         userMapper.insert(bizUser);
         BizCategory defaultCategory = new BizCategory();
         defaultCategory.setUserId(userId);
-        defaultCategory.setCategoryName("我的好友");
+        defaultCategory.setCategoryName(DEFAULT_CATEGORY_NAME);
         categoryMapper.insertCategory(defaultCategory);
         return bizUser;
     }
@@ -529,6 +530,9 @@ public class UserServiceImpl implements UserService {
         if (!oldCategory.getUserId().equals(userId)) {
             throw BusinessException.forbidden("无权修改此分类");
         }
+        if (DEFAULT_CATEGORY_NAME.equals(oldCategory.getCategoryName())) {
+            throw BusinessException.forbidden("默认分组不允许重命名");
+        }
         if (categoryMapper.existsByName(userId, name)) {
             throw BusinessException.conflict("分类名称已存在：" + name);
         }
@@ -540,5 +544,47 @@ public class UserServiceImpl implements UserService {
         if (rows != 1) {
             throw BusinessException.conflict("修改失败，请重试");
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void OnDeleteCategory(Long categoryId) {
+        if (categoryId == null) {
+            throw BusinessException.badRequest("分组ID不能为空");
+        }
+        Long userId = UserContext.getUserId();
+        BizCategory category = categoryMapper.getById(categoryId);
+        if (category == null) {
+            throw BusinessException.notFound("分组不存在");
+        }
+        if (!category.getUserId().equals(userId)) {
+            throw BusinessException.forbidden("无权删除此分组");
+        }
+        if (DEFAULT_CATEGORY_NAME.equals(category.getCategoryName())) {
+            throw BusinessException.forbidden("默认分组不允许删除");
+        }
+
+        Long defaultCategoryId = getOrCreateDefaultCategoryId(userId);
+        categoryMapper.moveFriendsToCategory(userId, categoryId, defaultCategoryId);
+        int rows = categoryMapper.deleteCategory(userId, categoryId);
+        if (rows != 1) {
+            throw BusinessException.conflict("删除失败，请重试");
+        }
+    }
+
+    private Long getOrCreateDefaultCategoryId(Long userId) {
+        List<BizCategory> categories = categoryMapper.getByUserId(userId);
+        if (categories != null) {
+            for (BizCategory category : categories) {
+                if (DEFAULT_CATEGORY_NAME.equals(category.getCategoryName())) {
+                    return category.getCategoryId();
+                }
+            }
+        }
+        BizCategory defaultCategory = new BizCategory();
+        defaultCategory.setUserId(userId);
+        defaultCategory.setCategoryName(DEFAULT_CATEGORY_NAME);
+        categoryMapper.insertCategory(defaultCategory);
+        return defaultCategory.getCategoryId();
     }
 }

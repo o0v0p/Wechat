@@ -199,6 +199,16 @@ public class UserController {
     }
 
 
+    @DeleteMapping("/deleteCategory")
+    @Operation(summary = "delete friend category", description = "Move friends to default category before deleting")
+    public Result<Void> OnDeleteCategory(@RequestParam Long categoryId){
+
+        log.info("delete friend category: {}", categoryId);
+        userService.OnDeleteCategory(categoryId);
+        return Result.success("删除好友分组成功");
+    }
+
+
     private String extractToken(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
         if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {

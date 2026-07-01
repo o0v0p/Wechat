@@ -58,7 +58,15 @@ public interface FriendMapper {
             "  (a.user_id = #{userId} AND a.friend_id = u.sys_user_id) OR " +
             "  (a.friend_id = #{userId} AND a.user_id = u.sys_user_id) " +
             "WHERE (a.user_id = #{userId} OR a.friend_id = #{userId}) " +
-            "  AND (u.is_deleted = 0 OR u.sys_user_id = #{userId})")
+            "  AND (u.is_deleted = 0 OR u.sys_user_id = #{userId}) " +
+            "  AND NOT EXISTS (" +
+            "    SELECT 1 FROM biz_user_friend mirror " +
+            "    WHERE mirror.user_id = a.friend_id " +
+            "      AND mirror.friend_id = a.user_id " +
+            "      AND mirror.status = 1 " +
+            "      AND a.status = 1 " +
+            "      AND mirror.user_friend_id < a.user_friend_id" +
+            "  )")
     List<FriendApplyVO> getApplyByUser(@Param("userId") Long userId);
 
     @Select("SELECT * FROM biz_user_friend WHERE user_friend_id = #{applyId}")
