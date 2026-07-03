@@ -81,3 +81,5 @@ logs/
 *.swp
 *.swo
 *~
+
+.yml
