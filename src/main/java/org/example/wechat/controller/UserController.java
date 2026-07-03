@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
+import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.JwtUtils;
 import org.example.wechat.common.util.TokenUtils;
 import org.example.wechat.common.util.UserContext;
@@ -49,17 +50,27 @@ public class UserController {
 
     @PostMapping("/login")
     @Operation(summary = "用户登录", description = "用户登录接口")
-    public Result<UserLoginVO> login(@RequestBody UserLoginDTO userLoginDTO) {
+    public Result<UserLoginVO> login(@RequestBody UserLoginDTO userLoginDTO, HttpServletRequest request) {
         log.info("用户登录:{}",userLoginDTO);
-        BizUser bizUser = userService.login(userLoginDTO);
-        String token = jwtUtils.generateToken(bizUser.getUserName(), bizUser.getUserId());
-        UserInfoVO userInfoVO = new UserInfoVO();
-        BeanUtils.copyProperties(bizUser,userInfoVO);
-        UserLoginVO userLoginVO = UserLoginVO.builder()
-                .token(token)
-                .userInfo(userInfoVO)
-                .build();
-        return Result.success("用户登录成功",userLoginVO);
+        String telephone = userLoginDTO == null ? null : userLoginDTO.getTelephone();
+        try {
+            BizUser bizUser = userService.login(userLoginDTO);
+            String token = jwtUtils.generateToken(bizUser.getUserName(), bizUser.getUserId());
+            UserInfoVO userInfoVO = new UserInfoVO();
+            BeanUtils.copyProperties(bizUser,userInfoVO);
+            UserLoginVO userLoginVO = UserLoginVO.builder()
+                    .token(token)
+                    .userInfo(userInfoVO)
+                    .build();
+            userService.recordLoginLog(request, null, bizUser.getUserId(), 1, "用户登录成功");
+            return Result.success("用户登录成功",userLoginVO);
+        } catch (BusinessException ex) {
+            userService.recordLoginLog(request, telephone, null, 0, ex.getMessage());
+            throw ex;
+        } catch (RuntimeException ex) {
+            userService.recordLoginLog(request, telephone, null, 0, "登录失败");
+            throw ex;
+        }
     }
 
     @PostMapping("/signup")

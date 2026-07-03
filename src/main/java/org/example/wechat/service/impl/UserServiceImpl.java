@@ -15,6 +15,7 @@ import org.example.wechat.dao.CategoryMapper;
 import org.example.wechat.dao.FriendMapper;
 import org.example.wechat.dao.GroupMapper;
 import org.example.wechat.dao.GroupUserMapper;
+import org.example.wechat.dao.LoginLogMapper;
 import org.example.wechat.dao.UserMapper;
 import org.example.wechat.pojo.dto.*;
 import org.example.wechat.pojo.entity.BizCategory;
@@ -22,6 +23,7 @@ import org.example.wechat.pojo.entity.BizFriend;
 import org.example.wechat.pojo.entity.BizFriendApply;
 import org.example.wechat.pojo.entity.BizGroup;
 import org.example.wechat.pojo.entity.BizGroupUser;
+import org.example.wechat.pojo.entity.BizLoginLog;
 import org.example.wechat.pojo.entity.BizUser;
 import org.example.wechat.pojo.vo.UserSearchVO;
 import org.example.wechat.service.UserService;
@@ -31,7 +33,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -77,6 +81,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private LoginLogMapper loginLogMapper;
 
     private static final long AUTH_CODE_TTL_MINUTES = 5;
     private static final long AUTH_CODE_RATE_SECONDS = 60;
@@ -142,6 +149,34 @@ public class UserServiceImpl implements UserService {
 
         return bizUser;
 
+    }
+
+    @Override
+    public void recordLoginLog(HttpServletRequest request, String telephone, Long userId, Integer loginResult, String returnMsg) {
+        try {
+            Long logUserId = userId;
+            if (logUserId == null && StringUtils.hasText(telephone)) {
+                BizUser loginUser = userMapper.getByTelephone(telephone);
+                if (loginUser != null) {
+                    logUserId = loginUser.getUserId();
+                }
+            }
+
+            BizLoginLog loginLog = new BizLoginLog();
+            loginLog.setUserId(logUserId);
+            if (Integer.valueOf(0).equals(loginResult)) {
+                loginLog.setUserTelephone(limit(telephone, 20));
+            }
+            loginLog.setUserIp(limit(getClientIp(request), 45));
+            loginLog.setUserDevice(limit(getUserAgent(request), 255));
+            loginLog.setLoginResult(loginResult);
+            loginLog.setReturnMsg(limit(returnMsg, 100));
+            loginLog.setCreatorId(logUserId);
+            loginLogMapper.insert(loginLog);
+        } catch (Exception e) {
+            log.warn("记录用户登录日志失败: telephone={}, result={}, error={}",
+                    telephone, loginResult, e.getMessage());
+        }
     }
 
     @Override
@@ -585,5 +620,54 @@ public class UserServiceImpl implements UserService {
         defaultCategory.setCategoryName(DEFAULT_CATEGORY_NAME);
         categoryMapper.insertCategory(defaultCategory);
         return defaultCategory.getCategoryId();
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return "unknown";
+        }
+        String ip = firstIp(request.getHeader("X-Forwarded-For"));
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        return isUnknownIp(ip) ? "unknown" : ip;
+    }
+
+    private String firstIp(String ipHeader) {
+        if (!StringUtils.hasText(ipHeader)) {
+            return ipHeader;
+        }
+        int commaIndex = ipHeader.indexOf(',');
+        if (commaIndex < 0) {
+            return ipHeader.trim();
+        }
+        return ipHeader.substring(0, commaIndex).trim();
+    }
+
+    private boolean isUnknownIp(String ip) {
+        return !StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip);
+    }
+
+    private String getUserAgent(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return request.getHeader("User-Agent");
+    }
+
+    private String limit(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }
