@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/chatdb?serverTimezone=Asia/Shanghai&characterEncoding=utf-8
     username: root
-    password: bingo...333
+    password: # 数据库 密码
     driver-class-name: com.mysql.cj.jdbc.Driver
   cache:
     disabled: true  # 开发时禁用缓存
