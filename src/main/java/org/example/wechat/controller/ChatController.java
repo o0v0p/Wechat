@@ -29,7 +29,7 @@ public class ChatController {
     @PostMapping("/send")
     @Operation(summary = "发送消息",
                description = "发送消息接口。InfoType：1-文本，2-文件，3-图片，4-视频；infoStatus：0-正常；2-引用；3-发送失败。撤回/删除请调用 /chat/status")
-    public Result<InfoHistoryVO> OnSendInfo(@RequestParam String context,
+    public Result<InfoHistoryVO> sendInfo(@RequestParam String context,
                                             @RequestParam Long receiveId,
                                             @RequestParam Integer InfoType,
                                             @RequestParam Integer otherType,
@@ -38,7 +38,7 @@ public class ChatController {
                                             @RequestParam(required = false) Integer status) {
         Integer finalStatus = chooseInfoStatus(infoStatus, InfoStatus, status, 0);
         log.info("发送消息 - receiveId: {}, InfoType: {}, otherType: {}, infoStatus: {}", receiveId, InfoType, otherType, finalStatus);
-        InfoHistoryVO infoHistoryVO = chatService.OnSendInfo(context, receiveId, InfoType, otherType, finalStatus);
+        InfoHistoryVO infoHistoryVO = chatService.sendInfo(context, receiveId, InfoType, otherType, finalStatus);
         if (infoHistoryVO.getInfoStatus() != null && infoHistoryVO.getInfoStatus() == 3) {
             return Result.success("消息发送失败，已保存失败标记", infoHistoryVO);
         }
@@ -70,12 +70,12 @@ public class ChatController {
 
     @GetMapping("/history")
     @Operation(summary = "获取历史消息")
-    public Result<List<InfoHistoryVO>> OnGetHistory(
+    public Result<List<InfoHistoryVO>> getHistory(
             @RequestParam Long otherId,
             @RequestParam(required = false) Long lastId,
             @RequestParam Integer sessionType) {  // 添加 sessionType 参数
         log.info("获取历史消息 - otherId: {}, lastId: {}, sessionType: {}", otherId, lastId, sessionType);
-        List<InfoHistoryVO> historyVOS = chatService.OnGetHistory(otherId, lastId,sessionType);
+        List<InfoHistoryVO> historyVOS = chatService.getHistory(otherId, lastId,sessionType);
         return Result.success("获取历史消息成功", historyVOS);
     }
 

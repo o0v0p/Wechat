@@ -9,21 +9,21 @@ import java.util.List;
 
 public interface FriendService {
 
-    List<FriendListVO> OnFriendList();
+    List<FriendListVO> listFriends();
 
-    void OnAddFriendApply(FriendApplyDTO friendApplyDTO);
+    void applyFriend(FriendApplyDTO friendApplyDTO);
 
-    void OnHandleApply(Long userFriendId, Integer status, String remark);
+    void handleApply(Long userFriendId, Integer status, String remark);
 
-    List<FriendApplyVO> OnFriendApply();
+    List<FriendApplyVO> listFriendApplies();
 
-    FriendDetailVO OnFriendProfile(Long friendId);
+    FriendDetailVO getFriendProfile(Long friendId);
 
-    void OnMoveCategory(String categoryName, Long friendId);
+    void moveCategory(String categoryName, Long friendId);
 
-    void OnUpdateRemark(String remark, Long friendId);
+    void updateRemark(String remark, Long friendId);
 
-    void OnDeleteFriend(Long friendId);
+    void deleteFriend(Long friendId);
 
     void updateFriendSettings(org.example.wechat.pojo.dto.FriendSettingsDTO dto);
 

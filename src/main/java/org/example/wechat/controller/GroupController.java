@@ -28,9 +28,9 @@ public class GroupController {
 
     @PostMapping("/add")
     @Operation(summary = "创建群聊",description = "创建群聊接口")
-    public Result<GroupListVO> OnAddGroup(@Valid @RequestBody GroupAddDTO groupAddDTO){
+    public Result<GroupListVO> addGroup(@Valid @RequestBody GroupAddDTO groupAddDTO){
         log.info("创建群聊");
-        GroupListVO groupListVO = groupService.OnAddGroup(groupAddDTO);
+        GroupListVO groupListVO = groupService.addGroup(groupAddDTO);
         return Result.success("创建群聊成功",groupListVO);
     }
 

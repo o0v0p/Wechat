@@ -71,7 +71,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public GroupListVO OnAddGroup(GroupAddDTO groupAddDTO) {
+    public GroupListVO addGroup(GroupAddDTO groupAddDTO) {
         BizGroup bizGroup = new BizGroup();
         BeanUtils.copyProperties(groupAddDTO, bizGroup);
         if (bizGroup.getGroupAvatar() == null || bizGroup.getGroupAvatar().trim().isEmpty()) {

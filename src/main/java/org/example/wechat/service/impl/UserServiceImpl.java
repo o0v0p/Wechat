@@ -118,7 +118,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public BizUser onUserLogin(UserLoginDTO userLoginDTO){
+    public BizUser login(UserLoginDTO userLoginDTO){
         String telephone = userLoginDTO.getTelephone();
         String password =  userLoginDTO.getPassword();
         if(!telephone.matches("^1[3-9]\\d{9}$")){
@@ -140,14 +140,13 @@ public class UserServiceImpl implements UserService {
         bizUser.setLastLoginTime(LocalDateTime.now());
         userMapper.update(bizUser);
 
-        //TODO:记录登录日志到 `biz_login_log` 表
         return bizUser;
 
     }
 
     @Override
     @Transactional
-    public BizUser onUserSignup(UserSignupDTO userSignupDTO) {
+    public BizUser signup(UserSignupDTO userSignupDTO) {
         String username = userSignupDTO.getUserName();
         String phone = userSignupDTO.getTelephone();
         String password = userSignupDTO.getPassword();
@@ -190,7 +189,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void onUserLogout() {
+    public void logout() {
         Long userId = UserContext.getUserId();
         BizUser bizUser = userMapper.getByUserId(userId);
         if (bizUser != null) {
@@ -204,7 +203,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void onUserDel(){
+    public void deleteCurrentUser(){
         Long userId = UserContext.getUserId();
         // 使用 getByUserIdAny 避免因 is_deleted 过滤导致查不到
         BizUser bizUser = userMapper.getByUserIdAny(userId);
@@ -247,7 +246,7 @@ public class UserServiceImpl implements UserService {
         updateUser.setNickname(originalNickname + "（已注销）");
         userMapper.update(updateUser);
 
-        // ── 3. 删除所有好友关系，并推送 friend_deleted 给对方（复用 OnDeleteFriend 逻辑） ──
+        // ── 3. 删除所有好友关系，并推送 friend_deleted 给对方（复用 deleteFriend 逻辑） ──
         List<Long> friendIds = friendMapper.getFriendIdsByUserId(userId);
         if (friendIds != null) {
             for (Long friendId : friendIds) {
@@ -324,7 +323,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void onUserForgetPwd(UserForgetPwdDTO userForgetPwdDTO) {
+    public void resetPassword(UserForgetPwdDTO userForgetPwdDTO) {
         String telephone = userForgetPwdDTO.getTelephone();
         String newPassword = userForgetPwdDTO.getNewPassword();
         if (telephone == null || !telephone.matches("^1[3-9]\\d{9}$")) {
@@ -392,7 +391,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void onUserPassword(UserPasswordDTO userPasswordDTO){
+    public void changePassword(UserPasswordDTO userPasswordDTO){
 
         Long userId = UserContext.getUserId();
         BizUser bizUser = userMapper.getByUserId(userId);
@@ -414,7 +413,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void onUserProfile(UserProfileDTO userProfileDTO) {
+    public void updateProfile(UserProfileDTO userProfileDTO) {
         Long userId = UserContext.getUserId();
         BizUser bizUser = userMapper.getByUserId(userId);
         if (bizUser == null) {
@@ -449,7 +448,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public BizUser onUserGetInfo(){
+    public BizUser getCurrentUserInfo(){
         Long userId = UserContext.getUserId();
         BizUser bizuser = userMapper.getByUserId(userId);
         if (bizuser == null) {
@@ -460,7 +459,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public List<UserSearchVO> OnUserSearch(String keyWord){
+    public List<UserSearchVO> searchUsers(String keyWord){
         if (keyWord == null || keyWord.trim().isEmpty()) {
             throw BusinessException.badRequest("搜索关键词不能为空");
         }
@@ -491,7 +490,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<BizCategory> OnCategoryList(){
+    public List<BizCategory> listCategories(){
         Long userId = UserContext.getUserId();
         if (userId == null || userId <= 0) {
             return Collections.emptyList();
@@ -501,7 +500,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void OnAddCategory(String categoryName){
+    public void addCategory(String categoryName){
         Long userId = UserContext.getUserId();
         if (userId == null || categoryName == null ||userId <= 0) {
             throw BusinessException.badRequest("组别名与用户ID不可为空");
@@ -518,7 +517,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void OnRenameCategory(String name, Long categoryId){
+    public void renameCategory(String name, Long categoryId){
         if (name == null || name.trim().isEmpty()) {
             throw BusinessException.badRequest("分类名称不能为空");
         }
@@ -548,7 +547,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void OnDeleteCategory(Long categoryId) {
+    public void deleteCategory(Long categoryId) {
         if (categoryId == null) {
             throw BusinessException.badRequest("分组ID不能为空");
         }

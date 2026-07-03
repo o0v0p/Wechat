@@ -60,7 +60,7 @@ public class FriendServiceImpl implements FriendService {
     private static final String FRIEND_APPLY_LOCK_PREFIX = "lock:friend:apply:";
 
     @Override
-    public List<FriendListVO> OnFriendList() {
+    public List<FriendListVO> listFriends() {
         Long userId = UserContext.getUserId();
         List<FriendListVO> friendList = friendMapper.getfriendList(userId);
         if (friendList == null || friendList.isEmpty()) {
@@ -70,7 +70,7 @@ public class FriendServiceImpl implements FriendService {
     }
 
     @Override
-    public void OnAddFriendApply(FriendApplyDTO friendApplyDTO){
+    public void applyFriend(FriendApplyDTO friendApplyDTO){
 
         Long userId = UserContext.getUserId();
         Long friendId = friendApplyDTO.getFriendId();
@@ -125,7 +125,7 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional
-    public void OnHandleApply(Long userFriendId,Integer status,String remark){
+    public void handleApply(Long userFriendId,Integer status,String remark){
         Long userId = UserContext.getUserId();
         BizFriendApply receiveApply = friendMapper.getByApplyId(userFriendId);
         if (receiveApply == null) {
@@ -168,7 +168,7 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional
-    public List<FriendApplyVO> OnFriendApply(){
+    public List<FriendApplyVO> listFriendApplies(){
         Long userId = UserContext.getUserId();
         List<FriendApplyVO> result = friendMapper.getApplyByUser(userId);
         return result != null ? result : new ArrayList<>();
@@ -176,7 +176,7 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional
-    public FriendDetailVO OnFriendProfile(Long friendId){
+    public FriendDetailVO getFriendProfile(Long friendId){
 
         Long userId = UserContext.getUserId();
         BizUser bizUser = userMapper.getByUserId(friendId);
@@ -197,7 +197,7 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional
-    public void OnMoveCategory(String categoryName, Long friendId){
+    public void moveCategory(String categoryName, Long friendId){
         if(categoryName == null || friendId == null)
             throw BusinessException.badRequest("移动分组名与ID不可为空");
         Long userId = UserContext.getUserId();
@@ -213,7 +213,7 @@ public class FriendServiceImpl implements FriendService {
     }
 
     @Override
-    public void OnUpdateRemark(String remark, Long friendId){
+    public void updateRemark(String remark, Long friendId){
         if(remark == null || friendId == null)
             throw BusinessException.badRequest("新备注与好友ID不可为空");
         Long userId = UserContext.getUserId();
@@ -225,7 +225,7 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void OnDeleteFriend(Long friendId){
+    public void deleteFriend(Long friendId){
         if(friendId == null)
             throw BusinessException.badRequest("好友ID不可为空");
         Long userId = UserContext.getUserId();

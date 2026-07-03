@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
 import org.example.wechat.common.util.JwtUtils;
+import org.example.wechat.common.util.TokenUtils;
 import org.example.wechat.common.util.UserContext;
 import org.example.wechat.pojo.dto.*;
 import org.example.wechat.pojo.entity.BizCategory;
@@ -15,7 +16,6 @@ import org.example.wechat.service.TokenService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -49,9 +49,9 @@ public class UserController {
 
     @PostMapping("/login")
     @Operation(summary = "用户登录", description = "用户登录接口")
-    public Result<UserLoginVO> onUserLogin(@RequestBody UserLoginDTO userLoginDTO) {
+    public Result<UserLoginVO> login(@RequestBody UserLoginDTO userLoginDTO) {
         log.info("用户登录:{}",userLoginDTO);
-        BizUser bizUser = userService.onUserLogin(userLoginDTO);
+        BizUser bizUser = userService.login(userLoginDTO);
         String token = jwtUtils.generateToken(bizUser.getUserName(), bizUser.getUserId());
         UserInfoVO userInfoVO = new UserInfoVO();
         BeanUtils.copyProperties(bizUser,userInfoVO);
@@ -64,10 +64,10 @@ public class UserController {
 
     @PostMapping("/signup")
     @Operation(summary = "用户注册", description = "用户注册接口")
-    public Result<UserSignupVO> onUserSignup(@RequestBody UserSignupDTO userSignupDTO) {
+    public Result<UserSignupVO> signup(@RequestBody UserSignupDTO userSignupDTO) {
 
         log.info("用户注册:{}",userSignupDTO);
-        BizUser bizUser = userService.onUserSignup(userSignupDTO);
+        BizUser bizUser = userService.signup(userSignupDTO);
         UserSignupVO userSignupVO = UserSignupVO.builder()
                 .userId(bizUser.getUserId())
                 .userName(bizUser.getUserName())
@@ -90,19 +90,19 @@ public class UserController {
     @Operation(summary = "用户退出登录", description = "退出当前登录状态（不注销账号）")
     public Result<Void> onUserExit(HttpServletRequest request) {
         log.info("用户退出登录");
-        String token = extractToken(request);
-        userService.onUserLogout();
+        String token = TokenUtils.extractToken(request);
+        userService.logout();
         tokenService.invalidateToken(token);
         return Result.success("退出成功");
     }
 
     @PostMapping({ "/delete"})
     @Operation(summary = "注销账号", description = "永久注销当前账号，注销前需已转让所有群主身份")
-    public Result<Void> onUserDel(HttpServletRequest request) {
+    public Result<Void> deleteCurrentUser(HttpServletRequest request) {
         log.info("用户注销账号");
         Long userId = UserContext.getUserId();
-        String token = extractToken(request);
-        userService.onUserDel();
+        String token = TokenUtils.extractToken(request);
+        userService.deleteCurrentUser();
         tokenService.invalidateToken(token);
         tokenService.invalidateAllTokensForUser(userId);
         return Result.success("账号注销成功");
@@ -110,22 +110,22 @@ public class UserController {
 
     @PostMapping("/reset-password")
     @Operation(summary = "重置密码（忘记密码）", description = "忘记密码接口")
-    public Result<Void> onUserForgetPwd(@RequestBody UserForgetPwdDTO userForgetPwdDTO) {
+    public Result<Void> resetPassword(@RequestBody UserForgetPwdDTO userForgetPwdDTO) {
 
         log.info("忘记密码:{}",userForgetPwdDTO);
-        userService.onUserForgetPwd(userForgetPwdDTO);
+        userService.resetPassword(userForgetPwdDTO);
         return Result.success();
 
     }
 
     @PostMapping("/password")
     @Operation(summary = "修改密码", description = "修改密码接口")
-    public Result<Void> onUserPassword(@RequestBody UserPasswordDTO userPasswordDTO, HttpServletRequest request) {
+    public Result<Void> changePassword(@RequestBody UserPasswordDTO userPasswordDTO, HttpServletRequest request) {
 
         log.info("修改密码:{}",userPasswordDTO);
         Long userId = UserContext.getUserId();
-        String token = extractToken(request);
-        userService.onUserPassword(userPasswordDTO);
+        String token = TokenUtils.extractToken(request);
+        userService.changePassword(userPasswordDTO);
         tokenService.invalidateToken(token);
         tokenService.invalidateAllTokensForUser(userId);
 
@@ -135,10 +135,9 @@ public class UserController {
 
     @PutMapping("/profile")
     @Operation(summary = "修改个人资料", description = "修改个人资料接口")
-    public Result<Void> onUserPassword(@RequestBody UserProfileDTO userProfileDTO) {
-        // TODO : 后期不提供修改username功能，改为换绑手机号
+    public Result<Void> updateProfile(@RequestBody UserProfileDTO userProfileDTO) {
         log.info("修改个人资料:{}",userProfileDTO);
-        userService.onUserProfile(userProfileDTO);
+        userService.updateProfile(userProfileDTO);
 
         return Result.success();
 
@@ -149,7 +148,7 @@ public class UserController {
     public Result<UserInfoVO> getUserInfo() {
 
         log.info("获取用户资料");
-        BizUser bizUser = userService.onUserGetInfo();
+        BizUser bizUser = userService.getCurrentUserInfo();
         UserInfoVO userInfoVO = new UserInfoVO();
         BeanUtils.copyProperties(bizUser,userInfoVO);
         return Result.success("获取用户信息成功",userInfoVO);
@@ -157,20 +156,20 @@ public class UserController {
 
     @GetMapping("/search")
     @Operation(summary = "搜索用户", description = "根据微信号/手机号/昵称搜索用户")
-    public Result<List<UserSearchVO>> OnSearchFriend(@RequestParam String keyWord){
+    public Result<List<UserSearchVO>> searchUsers(@RequestParam String keyWord){
 
         log.info("搜索用户:{}",keyWord);
-        List<UserSearchVO> userSearchVO  = userService.OnUserSearch(keyWord);
+        List<UserSearchVO> userSearchVO  = userService.searchUsers(keyWord);
         return Result.success("搜索用户成功",userSearchVO);
 
     }
 
     @GetMapping("/category")
     @Operation(summary = "获取类别列表", description = "获取类别列表接口")
-    public Result<List<CategoryVO>> OnCategoryList(){
+    public Result<List<CategoryVO>> listCategories(){
 
         log.info("获取类别列表");
-        List<BizCategory> categoryList = userService.OnCategoryList();
+        List<BizCategory> categoryList = userService.listCategories();
         List<CategoryVO> categoryVOList = new ArrayList<>();
         for (BizCategory category : categoryList) {
             CategoryVO categoryVO = new CategoryVO();
@@ -182,44 +181,30 @@ public class UserController {
 
     @PostMapping("/addCategory")
     @Operation(summary = "增加好友类别", description = "增加类别接口")
-    public Result<Void> OnAddCategory(@RequestParam String categoryName){
+    public Result<Void> addCategory(@RequestParam String categoryName){
 
         log.info("增加好友类别");
-        userService.OnAddCategory(categoryName);
+        userService.addCategory(categoryName);
         return Result.success("增加好友类别成功");
     }
 
     @PostMapping("/renameCategory")
     @Operation(summary = "重命名好友类别", description = "重命名类别接口")
-    public Result<Void> OnRenameCategory(@RequestParam String name,@RequestParam Long categoryId){
+    public Result<Void> renameCategory(@RequestParam String name,@RequestParam Long categoryId){
 
         log.info("重命名好友类别");
-        userService.OnRenameCategory(name,categoryId);
+        userService.renameCategory(name,categoryId);
         return Result.success("重命名好友类别成功");
     }
 
 
     @DeleteMapping("/deleteCategory")
     @Operation(summary = "delete friend category", description = "Move friends to default category before deleting")
-    public Result<Void> OnDeleteCategory(@RequestParam Long categoryId){
+    public Result<Void> deleteCategory(@RequestParam Long categoryId){
 
         log.info("delete friend category: {}", categoryId);
-        userService.OnDeleteCategory(categoryId);
+        userService.deleteCategory(categoryId);
         return Result.success("删除好友分组成功");
     }
 
-
-    private String extractToken(HttpServletRequest request) {
-        String token = request.getHeader("Authorization");
-        if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-        if (!StringUtils.hasText(token)) {
-            token = request.getHeader("token");
-        }
-        if (!StringUtils.hasText(token)) {
-            token = request.getParameter("token");
-        }
-        return token;
-    }
 }

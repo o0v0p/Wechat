@@ -16,19 +16,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * WebSocket 协议处理器（纯协议层，无 session 存储逻辑）
- *
- * 职责：
- *   - 连接建立/断开：委托 WsSessionManager 注册/注销
- *   - 消息 dispatch：ping/read 分发到对应处理逻辑
- *   - 不持有任何 session Map，所有在线状态查询和推送均通过 WsSessionManager
- *
- * 关于 UserContext 在 WebSocket 线程中的用法（方案A）：
- *   WebSocket handler 线程没有经过 JwtInterceptor，UserContext ThreadLocal 默认为空。
- *   在调用需要 UserContext 的 Service 方法前，从 session.getAttributes() 取 userId 手动 set，
- *   调用完毕后立即 remove，避免线程复用时的上下文污染。
- */
 @Slf4j
 @Component
 public class WebSocketHandler extends TextWebSocketHandler {

@@ -60,7 +60,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public InfoHistoryVO OnSendInfo(String content, Long receiveId, Integer type, Integer otherType, Integer infoStatus) {
+    public InfoHistoryVO sendInfo(String content, Long receiveId, Integer type, Integer otherType, Integer infoStatus) {
         Long userId = UserContext.getUserId();
         validateSendParams(content, receiveId, type, otherType, infoStatus);
 
@@ -345,7 +345,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<InfoHistoryVO> OnGetHistory(Long otherId, Long lastId, Integer receiverType) {
+    public List<InfoHistoryVO> getHistory(Long otherId, Long lastId, Integer receiverType) {
         Long userId = UserContext.getUserId();
         LocalDateTime joinTime = null;
         if (ReceiverTypeConstant.RECTYPE_PUBLIC == receiverType) {

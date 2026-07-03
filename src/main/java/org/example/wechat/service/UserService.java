@@ -9,35 +9,35 @@ import java.util.List;
 
 public interface UserService {
 
-    BizUser onUserLogin(UserLoginDTO userLoginDTO);
+    BizUser login(UserLoginDTO userLoginDTO);
 
-    BizUser onUserSignup(UserSignupDTO userSignupDTO);
+    BizUser signup(UserSignupDTO userSignupDTO);
 
     void sendAuthCode(String telephone);
 
-    void onUserLogout();
+    void logout();
 
-    void onUserDel();
+    void deleteCurrentUser();
 
-    void onUserForgetPwd(UserForgetPwdDTO userForgetPwdDTO);
+    void resetPassword(UserForgetPwdDTO userForgetPwdDTO);
 
     void checkAuthCode(String telephone, String code);
 
-    void onUserPassword(UserPasswordDTO userPasswordDTO);
+    void changePassword(UserPasswordDTO userPasswordDTO);
 
-    void onUserProfile(UserProfileDTO userProfileDTO);
+    void updateProfile(UserProfileDTO userProfileDTO);
 
-    BizUser onUserGetInfo();
+    BizUser getCurrentUserInfo();
 
-    List<BizCategory> OnCategoryList();
+    List<BizCategory> listCategories();
 
-    void OnAddCategory(String categoryName);
+    void addCategory(String categoryName);
 
-    List<UserSearchVO> OnUserSearch(String keyWord);
+    List<UserSearchVO> searchUsers(String keyWord);
 
-    void OnRenameCategory(String name, Long categoryId);
+    void renameCategory(String name, Long categoryId);
 
-    void OnDeleteCategory(Long categoryId);
+    void deleteCategory(Long categoryId);
 
     String uploadAvatar(MultipartFile file);
 }

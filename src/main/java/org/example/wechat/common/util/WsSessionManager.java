@@ -17,20 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * WebSocket Session 管理器（唯一 session 数据来源）
- *
- * 职责：
- *   1. session 注册/注销
- *   2. 消息异步推送（pushExecutor 线程池）
- *   3. 心跳超时清理（定时任务）
- *   4. 群聊已读游标（Redis）
- *
- * 依赖关系：
- *   WsSessionManager  ← WebSocketHandler（注册/注销 session，委托推送）
- *   WsSessionManager  ← ChatServiceImpl（调用 sendToUser / updateGroupLastRead）
- *   WsSessionManager 本身不依赖任何业务 Bean，无循环依赖
- */
 @Slf4j
 @Component
 public class WsSessionManager {

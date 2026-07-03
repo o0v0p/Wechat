@@ -29,28 +29,28 @@ public class FriendController {
 
     @GetMapping("/list")
     @Operation(summary = "获取好友列表", description = "获取好友列表接口")
-    public Result<List<FriendListVO>> OnFriendList(){
+    public Result<List<FriendListVO>> listFriends(){
 
         log.info("获取好友列表");
-        List<FriendListVO> friendListVO = friendService.OnFriendList();
+        List<FriendListVO> friendListVO = friendService.listFriends();
         return Result.success("获取好友列表成功",friendListVO);
     }
 
     @PostMapping("/apply")
     @Operation(summary = "申请添加好友", description = "申请添加好友接口")
-    public Result<Void> OnAddFriend(@RequestBody FriendApplyDTO friendApplyDTO){
+    public Result<Void> applyFriend(@RequestBody FriendApplyDTO friendApplyDTO){
 
         log.info("申请添加好友");
-        friendService.OnAddFriendApply(friendApplyDTO);
+        friendService.applyFriend(friendApplyDTO);
         return Result.success();
     }
 
     @PutMapping("/handleApply")
     @Operation(summary = "处理好友申请", description = "处理好友申请接口")
-    public Result<Void> OnHandleFriend(@RequestParam Long userFriendId,@RequestParam Integer status,@RequestParam(required = false) String remark){
+    public Result<Void> handleFriendApply(@RequestParam Long userFriendId,@RequestParam Integer status,@RequestParam(required = false) String remark){
 
         log.info("处理好友申请");
-        friendService.OnHandleApply(userFriendId,status,remark);
+        friendService.handleApply(userFriendId,status,remark);
         if (status == 1) {
             return Result.success("已同意好友申请");
         } else{
@@ -60,35 +60,35 @@ public class FriendController {
 
     @GetMapping("/showApply")
     @Operation(summary = "获取好友申请列表", description = "获取好友申请列表接口")
-    public Result<List<FriendApplyVO>> OnHandleFriend(){
+    public Result<List<FriendApplyVO>> listFriendApplies(){
 
         log.info("获取好友申请列表");
-        List<FriendApplyVO> friendApplyVO = friendService.OnFriendApply();
+        List<FriendApplyVO> friendApplyVO = friendService.listFriendApplies();
         return Result.success("获取好友申请列表成功",friendApplyVO);
     }
 
     @GetMapping("/Profile")
     @Operation(summary = "获取好友详情信息", description = "获取好友详情信息接口")
-    public Result<FriendDetailVO> OnFriendProfile(@RequestParam Long FriendId){
+    public Result<FriendDetailVO> getFriendProfile(@RequestParam Long FriendId){
         log.info("获取好友详情信息");
-        FriendDetailVO friendDetailVO = friendService.OnFriendProfile(FriendId);
+        FriendDetailVO friendDetailVO = friendService.getFriendProfile(FriendId);
         return Result.success("获取好友详情信息成功",friendDetailVO);
 
     }
 
     @PutMapping("/moveCategory")
     @Operation(summary = "移动好友分组", description = "移动好友分组")
-    public Result<Void> OnMoveCategory(@RequestParam String categoryName,@RequestParam Long friendId){
+    public Result<Void> moveCategory(@RequestParam String categoryName,@RequestParam Long friendId){
         log.info("移动好友分组");
-        friendService.OnMoveCategory(categoryName,friendId);
+        friendService.moveCategory(categoryName,friendId);
         return Result.success("移动好友分组成功");
     }
 
     @PutMapping("/remark")
     @Operation(summary = "修改好友备注", description = "修改好友备注")
-    public Result<Void> OnUpdateRemark(@RequestParam String remark,@RequestParam Long friendId){
+    public Result<Void> updateRemark(@RequestParam String remark,@RequestParam Long friendId){
         log.info("修改好友备注");
-        friendService.OnUpdateRemark(remark,friendId);
+        friendService.updateRemark(remark,friendId);
         return Result.success("修改好友备注成功");
     }
 
@@ -102,9 +102,9 @@ public class FriendController {
 
     @DeleteMapping("/delete")
     @Operation(summary = "删除好友", description = "删除好友")
-    public Result<Void> OnDeleteFriend(@RequestParam Long friendId){
+    public Result<Void> deleteFriend(@RequestParam Long friendId){
         log.info("删除好友");
-        friendService.OnDeleteFriend(friendId);
+        friendService.deleteFriend(friendId);
         return Result.success("删除好友成功");
     }
 

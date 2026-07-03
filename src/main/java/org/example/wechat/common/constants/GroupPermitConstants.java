@@ -1,9 +1,5 @@
 package org.example.wechat.common.constants;
 
-/**
- * 群角色权限码常量
- * 与数据库 biz_permission 表中的 permission 字段保持一致
- */
 public class GroupPermitConstants {
 
     /** 移除成员 */

@@ -1,14 +1,10 @@
 package org.example.wechat.common.util;
 
-import com.alibaba.ttl.TransmittableThreadLocal;  // ← 新增 import
-
 public class UserContext {
 
-    private static final TransmittableThreadLocal<Long> USER_ID_HOLDER
-            = new TransmittableThreadLocal<>();
+    private static final ThreadLocal<Long> USER_ID_HOLDER = new ThreadLocal<>();
 
-    private static final TransmittableThreadLocal<String> USERNAME_HOLDER
-            = new TransmittableThreadLocal<>();
+    private static final ThreadLocal<String> USERNAME_HOLDER = new ThreadLocal<>();
 
     public static void setUserId(Long userId) {
         USER_ID_HOLDER.set(userId);

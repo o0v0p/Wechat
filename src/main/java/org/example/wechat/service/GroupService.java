@@ -8,7 +8,7 @@ import org.example.wechat.pojo.vo.*;
 import java.util.List;
 
 public interface GroupService {
-    GroupListVO OnAddGroup(GroupAddDTO groupAddDTO);
+    GroupListVO addGroup(GroupAddDTO groupAddDTO);
 
     List<GroupMemberVO> getGroupMembers(Long groupId);
 

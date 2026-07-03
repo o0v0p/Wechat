@@ -6,9 +6,9 @@ import org.example.wechat.pojo.vo.SessionListVO;
 import java.util.List;
 
 public interface ChatService {
-    InfoHistoryVO OnSendInfo(String content, Long receiveId, Integer type, Integer otherType, Integer infoStatus);
+    InfoHistoryVO sendInfo(String content, Long receiveId, Integer type, Integer otherType, Integer infoStatus);
 
-    List<InfoHistoryVO> OnGetHistory(Long otherId, Long LastId,Integer receiverType);
+    List<InfoHistoryVO> getHistory(Long otherId, Long LastId,Integer receiverType);
 
     List<SessionListVO> getSessionList();
 
