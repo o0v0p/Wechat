@@ -556,6 +556,14 @@ public class ChatServiceImpl implements ChatService {
     public void markMessagesAsRead(Long targetId, Integer sessionType) {
         Long userId = UserContext.getUserId();
         if (ReceiverTypeConstant.RECTYPE_PRIVATE == sessionType) {
+            BizUser targetUser = userMapper.getByUserId(targetId);
+            if (targetUser == null) {
+                throw BusinessException.notFound("对方用户不存在");
+            }
+            int isFriend = friendMapper.checkIsFriend(userId, targetId);
+            if (isFriend <= 0 && !userId.equals(targetId)) {
+                throw BusinessException.forbidden("关系权限不足，无法标记该会话");
+            }
             bizInfoMapper.markMessagesAsRead(userId, targetId);
         } else if (ReceiverTypeConstant.RECTYPE_PUBLIC == sessionType) {
             BizGroupUser groupUser = groupUserMapper.selectByMemId(targetId, userId);
@@ -567,6 +575,8 @@ public class ChatServiceImpl implements ChatService {
                 String key = userId + ":" + targetId;
                 sessionManager.updateGroupLastRead(key, latestMsg.getInfoId());
             }
+        } else {
+            throw BusinessException.badRequest("会话类型不正确");
         }
     }
 

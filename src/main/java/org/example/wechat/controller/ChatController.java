@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.Result;
+import org.example.wechat.common.util.FileUploadValidator;
 import org.example.wechat.common.util.OssUtils;
 import org.example.wechat.pojo.vo.InfoHistoryVO;
 import org.example.wechat.pojo.vo.SessionListVO;
@@ -101,7 +102,8 @@ public class ChatController {
     @PostMapping("/upload")
     @Operation(summary = "上传多媒体文件")
     public Result<String> uploadFile(@RequestParam("file") MultipartFile file) {
-        log.info("上传多媒体文件: {}", file);
+        log.info("上传多媒体文件");
+        FileUploadValidator.validateChatFile(file);
         String url = ossUtils.uploadFile(file, "Info");
         return Result.success("上传多媒体文件成功", url);
     }

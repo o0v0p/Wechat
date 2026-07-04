@@ -60,6 +60,7 @@ public class GroupServiceImpl implements GroupService {
     private RoleMapper roleMapper;
 
     private static final int DEFAULT_MAX_NUM = 200;
+    private static final int MAX_GROUP_NAME_LENGTH = 20;
 
     @Override
     public List<GroupSearchVO> searchGroups(String keyword) {
@@ -93,6 +94,12 @@ public class GroupServiceImpl implements GroupService {
         if (memCount > DEFAULT_MAX_NUM) {
             throw BusinessException.badRequest("创建群时成员数不能超过 " + DEFAULT_MAX_NUM + " 人");
         }
+        BizUser owner = userMapper.getByUserIdAny(userId);
+        if (owner == null || (owner.getIsDeleted() != null && owner.getIsDeleted() == 1)) {
+            throw BusinessException.badRequest("当前用户不存在或已注销，创建群失败");
+        }
+        List<BizUser> groupUsers = new ArrayList<>();
+        groupUsers.add(owner);
         for (Long memberId : uniqueMemberIds) {
             BizUser member = userMapper.getByUserIdAny(memberId);
             if (member == null) {
@@ -105,6 +112,12 @@ public class GroupServiceImpl implements GroupService {
             if (blacklist != null) {
                 throw BusinessException.forbidden("用户 " + memberId + " 已将您拉黑，无法加入群聊");
             }
+            groupUsers.add(member);
+        }
+        if (bizGroup.getGroupName() == null || bizGroup.getGroupName().trim().isEmpty()) {
+            bizGroup.setGroupName(buildDefaultGroupName(groupUsers, memCount));
+        } else {
+            bizGroup.setGroupName(bizGroup.getGroupName().trim());
         }
         int result = groupMapper.insert(bizGroup);
         if (result <= 0) {
@@ -179,6 +192,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public List<GroupMemberVO> getGroupMembers(Long groupId) {
+        assertActiveGroupMember(groupId, UserContext.getUserId());
         BizGroup group = groupMapper.selectById(groupId);
         if (group == null) {
             throw BusinessException.notFound("群聊不存在");
@@ -510,6 +524,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public GroupDetailVO getGroupDetail(Long groupId) {
+        assertActiveGroupMember(groupId, UserContext.getUserId());
         BizGroup bizGroup = groupMapper.selectById(groupId);
         if (bizGroup == null) {
             throw BusinessException.notFound("群聊不存在");
@@ -718,5 +733,47 @@ public class GroupServiceImpl implements GroupService {
             BeanUtils.copyProperties(role, vo);
             return vo;
         }).collect(Collectors.toList());
+    }
+
+    private void assertActiveGroupMember(Long groupId, Long userId) {
+        if (groupId == null) {
+            throw BusinessException.badRequest("群ID不可为空");
+        }
+        BizGroupUser member = groupUserMapper.selectByMemId(groupId, userId);
+        if (member == null || member.getIsDeleted() == 1) {
+            throw BusinessException.forbidden("您不在该群聊中");
+        }
+    }
+
+    private String buildDefaultGroupName(List<BizUser> users, int memberCount) {
+        String name = users.stream()
+                .filter(Objects::nonNull)
+                .limit(3)
+                .map(this::resolveDisplayName)
+                .collect(Collectors.joining("、"));
+        if (name.isBlank()) {
+            name = "群聊";
+        }
+        if (memberCount > 3) {
+            name = name + "等……";
+        }
+        return truncateGroupName(name);
+    }
+
+    private String resolveDisplayName(BizUser user) {
+        if (user.getNickname() != null && !user.getNickname().isBlank()) {
+            return user.getNickname().trim();
+        }
+        if (user.getUserName() != null && !user.getUserName().isBlank()) {
+            return user.getUserName().trim();
+        }
+        return "用户";
+    }
+
+    private String truncateGroupName(String name) {
+        if (name.length() <= MAX_GROUP_NAME_LENGTH) {
+            return name;
+        }
+        return name.substring(0, MAX_GROUP_NAME_LENGTH);
     }
 }
