@@ -246,7 +246,7 @@ public class GroupServiceImpl implements GroupService {
             throw BusinessException.forbidden("只有群主可以解散群聊");
         }
 
-        // ★ 删除前先保存成员列表（删了就查不到了）
+        // 删除前先保存成员列表
         List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
         groupUserMapper.deleteByGroupId(groupId);
         int result = groupMapper.deleteById(groupId);
@@ -254,7 +254,7 @@ public class GroupServiceImpl implements GroupService {
             throw BusinessException.conflict("解散群聊失败");
         }
 
-        // ★ 推送：通知所有成员（含群主自己可选）群已解散
+        // 推送：通知所有成员（含群主自己可选）群已解散
         try {
             Map<String, Object> notice = new HashMap<>();
             notice.put("type", "group_dismissed");
@@ -308,7 +308,7 @@ public class GroupServiceImpl implements GroupService {
             throw BusinessException.conflict("更新新群主角色失败");
         }
 
-        // ★ 推送：通知群内所有成员群主已变更
+        // 推送：通知群内所有成员群主已变更
         try {
             BizUser oldOwnerUser = userMapper.getByUserId(currentUserId);
             BizUser newOwnerInfo = userMapper.getByUserId(newOwnerId);
@@ -355,7 +355,7 @@ public class GroupServiceImpl implements GroupService {
             }
         }
 
-        // ★ 推送前先拿成员列表（删除操作前）
+        // 删除推送前先拿成员列表
         List<BizGroupUser> members = groupUserMapper.selectByGroupId(groupId);
 
         int result = groupUserMapper.deleteByMem(groupId, currentUserId);
@@ -363,7 +363,7 @@ public class GroupServiceImpl implements GroupService {
             throw BusinessException.conflict("退出群聊失败");
         }
 
-        // ★ 推送：通知群内其他成员有人退群
+        // 推送：通知群内其他成员有人退群
         BizUser exitUser = userMapper.getByUserId(currentUserId);
         String nickname = (exitUser != null && exitUser.getNickname() != null)
                 ? exitUser.getNickname() : "未知用户";
