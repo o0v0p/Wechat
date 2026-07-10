@@ -3,6 +3,7 @@ package org.example.wechat.service;
 import org.example.wechat.pojo.dto.*;
 import org.example.wechat.pojo.entity.*;
 import org.example.wechat.pojo.vo.UserSearchVO;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.List;
 public interface UserService {
 
     BizUser login(UserLoginDTO userLoginDTO);
+
+    void recordLoginLog(HttpServletRequest request, String telephone, Long userId, Integer loginResult, String returnMsg);
 
     BizUser signup(UserSignupDTO userSignupDTO);
 

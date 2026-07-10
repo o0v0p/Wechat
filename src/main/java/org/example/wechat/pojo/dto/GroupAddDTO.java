@@ -3,7 +3,6 @@ package org.example.wechat.pojo.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -13,8 +12,7 @@ import java.util.List;
 @Data
 public class GroupAddDTO {
 
-    @NotBlank(message = "群名称不能为空")
-    @Size(max = 50, message = "群名称长度不能超过50个字符")
+    @Size(max = 20, message = "群名称长度不能超过20个字符")
     private String groupName;
 
     @NotNull(message = "成员列表不能为空")

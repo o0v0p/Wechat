@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.wechat.common.constants.GroupRoleConstants;
 import org.example.wechat.common.exception.BusinessException;
 import org.example.wechat.common.util.BiRecordUtils;
+import org.example.wechat.common.util.FileUploadValidator;
 import org.example.wechat.common.util.OssUtils;
 import org.example.wechat.common.util.SnowIdWorker;
 import org.example.wechat.common.util.UserContext;
@@ -15,6 +16,7 @@ import org.example.wechat.dao.CategoryMapper;
 import org.example.wechat.dao.FriendMapper;
 import org.example.wechat.dao.GroupMapper;
 import org.example.wechat.dao.GroupUserMapper;
+import org.example.wechat.dao.LoginLogMapper;
 import org.example.wechat.dao.UserMapper;
 import org.example.wechat.pojo.dto.*;
 import org.example.wechat.pojo.entity.BizCategory;
@@ -22,6 +24,7 @@ import org.example.wechat.pojo.entity.BizFriend;
 import org.example.wechat.pojo.entity.BizFriendApply;
 import org.example.wechat.pojo.entity.BizGroup;
 import org.example.wechat.pojo.entity.BizGroupUser;
+import org.example.wechat.pojo.entity.BizLoginLog;
 import org.example.wechat.pojo.entity.BizUser;
 import org.example.wechat.pojo.vo.UserSearchVO;
 import org.example.wechat.service.UserService;
@@ -31,7 +34,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -78,12 +83,20 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    @Autowired
+    private LoginLogMapper loginLogMapper;
+
     private static final long AUTH_CODE_TTL_MINUTES = 5;
     private static final long AUTH_CODE_RATE_SECONDS = 60;
-    private static final long MAX_FILE_SIZE = 2 * 1024 * 1024;
     private static final String AUTH_CODE_KEY_PREFIX = "user:auth:code:";
     private static final String AUTH_CODE_RATE_PREFIX = "verify:rate:";
     private static final String DEFAULT_CATEGORY_NAME = "\u6211\u7684\u597d\u53cb";
+    private static final Long LOGIN_INTERFACE_ID = 1L;
+    private static final int MAX_LOGIN_FAIL_COUNT = 5;
+    private static final long LOGIN_FAIL_WINDOW_MINUTES = 5;
+    private static final long LOGIN_LOCK_MINUTES = 10;
+    private static final String LOGIN_FAIL_KEY_PREFIX = "user:login:fail:";
+    private static final String LOGIN_LOCK_KEY_PREFIX = "user:login:lock:";
 
     @Override
     @Transactional
@@ -93,16 +106,7 @@ public class UserServiceImpl implements UserService {
         if (bizUser == null) {
             throw BusinessException.notFound("用户不存在");
         }
-        if (file == null || file.isEmpty()) {
-            throw BusinessException.badRequest("文件不能为空");
-        }
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw BusinessException.badRequest("只能上传图片文件");
-        }
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw BusinessException.badRequest("图片大小不能超过2MB");
-        }
+        FileUploadValidator.validateAvatar(file);
         String avatarUrl = ossUtils.uploadFile(file, "avatar");
         BizUser updateUser = new BizUser();
         updateUser.setUserId(userId);
@@ -119,21 +123,32 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public BizUser login(UserLoginDTO userLoginDTO){
+        if (userLoginDTO == null) {
+            throw BusinessException.badRequest("登录参数不能为空");
+        }
         String telephone = userLoginDTO.getTelephone();
         String password =  userLoginDTO.getPassword();
+        if (!StringUtils.hasText(telephone) || !StringUtils.hasText(password)) {
+            throw BusinessException.badRequest("手机号和密码不能为空");
+        }
         if(!telephone.matches("^1[3-9]\\d{9}$")){
             throw BusinessException.badRequest("请输入有效的手机号码");
         }
+        checkLoginLocked(telephone);
         BizUser bizUser = userMapper.getByTelephone(telephone);
         if(bizUser == null){
+            recordLoginFailure(telephone);
             throw BusinessException.notFound("用户不存在");
         }
         if (!passwordEncoder.matches(password, bizUser.getPassword())) {
+            recordLoginFailure(telephone);
             throw BusinessException.badRequest("密码错误");
         }
         if (bizUser.getIsDeleted() == 1) {
+            recordLoginFailure(telephone);
             throw BusinessException.forbidden("账号已注销/被禁用");
         }
+        clearLoginFailure(telephone);
         UserContext.setUserId(bizUser.getUserId());
         UserContext.setUserName(bizUser.getUserName());
         bizUser.setUserStatus(1);
@@ -142,6 +157,34 @@ public class UserServiceImpl implements UserService {
 
         return bizUser;
 
+    }
+
+    @Override
+    public void recordLoginLog(HttpServletRequest request, String telephone, Long userId, Integer loginResult, String returnMsg) {
+        try {
+            Long logUserId = userId;
+            if (logUserId == null && StringUtils.hasText(telephone)) {
+                BizUser loginUser = userMapper.getByTelephone(telephone);
+                if (loginUser != null) {
+                    logUserId = loginUser.getUserId();
+                }
+            }
+
+            String clientIp = getClientIp(request);
+            BizLoginLog loginLog = new BizLoginLog();
+            loginLog.setUserId(logUserId);
+            loginLog.setUserIp(limit(clientIp, 45));
+            loginLog.setUserAddress(limit(getUserAddress(request, clientIp), 30));
+            loginLog.setUserDevice(limit(getUserAgent(request), 255));
+            loginLog.setInterfaceId(LOGIN_INTERFACE_ID);
+            loginLog.setLoginResult(loginResult);
+            loginLog.setReturnMsg(limit(returnMsg, 100));
+            loginLog.setCreatorId(logUserId);
+            loginLogMapper.insert(loginLog);
+        } catch (Exception e) {
+            log.warn("记录用户登录日志失败: telephone={}, result={}, error={}",
+                    telephone, loginResult, e.getMessage());
+        }
     }
 
     @Override
@@ -585,5 +628,123 @@ public class UserServiceImpl implements UserService {
         defaultCategory.setCategoryName(DEFAULT_CATEGORY_NAME);
         categoryMapper.insertCategory(defaultCategory);
         return defaultCategory.getCategoryId();
+    }
+
+    private void checkLoginLocked(String telephone) {
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(LOGIN_LOCK_KEY_PREFIX + telephone))) {
+            throw BusinessException.forbidden("登录失败次数过多，请稍后再试");
+        }
+    }
+
+    private void recordLoginFailure(String telephone) {
+        String failKey = LOGIN_FAIL_KEY_PREFIX + telephone;
+        Long failCount = redisTemplate.opsForValue().increment(failKey);
+        if (failCount != null && failCount == 1L) {
+            redisTemplate.expire(failKey, LOGIN_FAIL_WINDOW_MINUTES, TimeUnit.MINUTES);
+        }
+        if (failCount != null && failCount >= MAX_LOGIN_FAIL_COUNT) {
+            redisTemplate.opsForValue().set(LOGIN_LOCK_KEY_PREFIX + telephone, "1", LOGIN_LOCK_MINUTES, TimeUnit.MINUTES);
+            redisTemplate.delete(failKey);
+        }
+    }
+
+    private void clearLoginFailure(String telephone) {
+        redisTemplate.delete(LOGIN_FAIL_KEY_PREFIX + telephone);
+        redisTemplate.delete(LOGIN_LOCK_KEY_PREFIX + telephone);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return "unknown";
+        }
+        String ip = firstIp(request.getHeader("X-Forwarded-For"));
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (isUnknownIp(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        return isUnknownIp(ip) ? "unknown" : ip;
+    }
+
+    private String firstIp(String ipHeader) {
+        if (!StringUtils.hasText(ipHeader)) {
+            return ipHeader;
+        }
+        int commaIndex = ipHeader.indexOf(',');
+        if (commaIndex < 0) {
+            return ipHeader.trim();
+        }
+        return ipHeader.substring(0, commaIndex).trim();
+    }
+
+    private boolean isUnknownIp(String ip) {
+        return !StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip);
+    }
+
+    private String getUserAgent(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return request.getHeader("User-Agent");
+    }
+
+    private String getUserAddress(HttpServletRequest request, String ip) {
+        if (request != null) {
+            String address = firstText(
+                    request.getHeader("X-User-Address"),
+                    request.getHeader("X-IP-Region"),
+                    request.getHeader("X-Real-Address")
+            );
+            if (StringUtils.hasText(address)) {
+                return address;
+            }
+        }
+        if (isLocalIp(ip)) {
+            return "localhost";
+        }
+        if (isPrivateIp(ip)) {
+            return "intranet";
+        }
+        return "unknown";
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private boolean isLocalIp(String ip) {
+        return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip)
+                || "localhost".equalsIgnoreCase(ip);
+    }
+
+    private boolean isPrivateIp(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            return false;
+        }
+        return ip.startsWith("10.")
+                || ip.startsWith("192.168.")
+                || ip.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+    }
+
+    private String limit(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }
